@@ -12,6 +12,7 @@ struct AxPlaygroundApp: App {
     
     init() {
         DevinHelper.loadEnv()
+        setupNotificationObserver()
     }
     
     @StateObject private var accessibilityMonitor = AccessibilityMonitor()
@@ -47,10 +48,6 @@ struct AxPlaygroundApp: App {
             )
         }
         .menuBarExtraStyle(.window)
-    }
-
-    init() {
-        setupNotificationObserver()
     }
 
     private func setupNotificationObserver() {
