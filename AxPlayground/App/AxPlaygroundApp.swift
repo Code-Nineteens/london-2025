@@ -24,7 +24,40 @@ struct AxPlaygroundApp: App {
         MenuBarExtra("AxPlayground", systemImage: "bolt.fill") {
             VStack(alignment: .leading, spacing: 12) {
                 Button {
-                    NSApplication.shared.activate(ignoringOtherApps: true)
+                    // Extract visible text from ALL applications on screen
+                    let visibleText = ScreenTextExtractor.shared.extractAllScreenText()
+                    print("📝 Extracted text from screen:\n\(visibleText)")
+                    
+                    // Save to file on Desktop
+                    let timestamp = ISO8601DateFormatter().string(from: Date())
+                    let fileName = "screen_text_\(timestamp.replacingOccurrences(of: ":", with: "-")).txt"
+                    let desktopURL = FileManager.default.urls(for: .desktopDirectory, in: .userDomainMask).first!
+                    let fileURL = desktopURL.appendingPathComponent(fileName)
+                    
+                    do {
+                        try visibleText.write(to: fileURL, atomically: true, encoding: .utf8)
+                        
+                        // Open the file in TextEdit
+                        NSWorkspace.shared.open(fileURL)
+                        
+                        NotificationManager.shared.show(
+                            title: "Text Extracted",
+                            message: "Saved to Desktop: \(fileName)",
+                            icon: "doc.text.fill"
+                        )
+                    } catch {
+                        NotificationManager.shared.show(
+                            title: "Error",
+                            message: "Failed to save: \(error.localizedDescription)",
+                            icon: "exclamationmark.triangle.fill"
+                        )
+                    }
+                } label: {
+                    Label("Extract Screen Text", systemImage: "text.viewfinder")
+                }
+                .buttonStyle(.borderedProminent)
+                
+                Button {
                     NotificationManager.shared.show(
                         title: "Suggestion",
                         message: "You can use this app to test accessibility features.",
@@ -33,12 +66,14 @@ struct AxPlaygroundApp: App {
                 } label: {
                     Label("Show suggestion", systemImage: "bell.fill")
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.bordered)
+                
+                Divider()
                 
                 Button {
                     NSApplication.shared.terminate(nil)
                 } label: {
-                    Label("Zakończ", systemImage: "xmark.circle")
+                    Label("Quit", systemImage: "xmark.circle")
                 }
                 .buttonStyle(.bordered)
             }
