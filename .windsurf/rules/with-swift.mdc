@@ -202,6 +202,35 @@ Task {
 - Group related files in directories that represent features or modules
 - Keep view controllers as small as possible, delegating responsibility to helper classes
 
+### File Length Limits (MANDATORY)
+
+- **Target**: 300 lines maximum per file
+- **Hard limit**: 400 lines (NEVER exceed this)
+- Files over 400 lines are **categorically forbidden**
+
+When a file approaches or exceeds these limits:
+1. Extract models/structs into separate files
+2. Use extensions in separate files for protocol conformance
+3. Extract helper classes/utilities
+4. Split large classes by responsibility using extensions
+
+```swift
+// GOOD: Split by responsibility
+// UserProfile.swift (main class, ~150 lines)
+// UserProfile+Validation.swift (extension, ~80 lines)
+// UserProfile+Networking.swift (extension, ~100 lines)
+// UserProfileDTO.swift (data transfer object, ~50 lines)
+
+// BAD: One massive file
+// UserProfile.swift (500+ lines with everything)
+```
+
+When splitting:
+- Keep related code together in the same extension file
+- Name extension files: `TypeName+Feature.swift`
+- Models/DTOs get their own files: `ModelName.swift`
+- Protocols get their own files: `ProtocolName.swift`
+
 ## Third-Party Libraries
 
 - Favor native Apple frameworks over third-party libraries when possible
