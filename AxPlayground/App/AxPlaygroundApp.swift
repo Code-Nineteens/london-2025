@@ -58,13 +58,9 @@ struct AxPlaygroundApp: App {
                 .buttonStyle(.borderedProminent)
                 
                 Button {
-                    NotificationManager.shared.show(
-                        title: "Suggestion",
-                        message: "You can use this app to test accessibility features.",
-                        icon: "bolt.fill"
-                    )
+                    MailHelper.openMailApp()
                 } label: {
-                    Label("Show suggestion", systemImage: "bell.fill")
+                    Label("Open Mail", systemImage: "envelope.fill")
                 }
                 .buttonStyle(.bordered)
                 
