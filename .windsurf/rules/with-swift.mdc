@@ -1,8 +1,9 @@
 ---
-description: 
-globs: 
+description:
+globs:
 alwaysApply: false
 ---
+
 # Swift Coding Standards and Best Practices
 
 As an AI assistant working on Swift code, I should follow these guidelines to ensure high-quality, maintainable, and efficient Swift code.
@@ -22,7 +23,7 @@ struct UserProfile {
     var fullName: String
     var emailAddress: String
     var isVerified: Bool
-    
+
     func refreshUserData() { ... }
 }
 
@@ -31,7 +32,7 @@ struct user_data {
     var nm: String
     var mail: String
     var verified: Bool
-    
+
     func refresh_data() { ... }
 }
 ```
@@ -157,9 +158,9 @@ extension Displayable where Self: Identifiable {
 // GOOD
 class DetailViewController: UIViewController {
     weak var delegate: DetailViewControllerDelegate?
-    
+
     var completionHandler: (() -> Void)?
-    
+
     func setupHandler() {
         networkManager.fetchData { [weak self] data in
             self?.processData(data)
@@ -209,6 +210,7 @@ Task {
 - Files over 400 lines are **categorically forbidden**
 
 When a file approaches or exceeds these limits:
+
 1. Extract models/structs into separate files
 2. Use extensions in separate files for protocol conformance
 3. Extract helper classes/utilities
@@ -226,6 +228,7 @@ When a file approaches or exceeds these limits:
 ```
 
 When splitting:
+
 - Keep related code together in the same extension file
 - Name extension files: `TypeName+Feature.swift`
 - Models/DTOs get their own files: `ModelName.swift`
@@ -256,10 +259,10 @@ func test_calculateTotal_withValidItems_returnsSumWithTax() {
     let cart = ShoppingCart()
     cart.add(item: Item(price: 10.0))
     cart.add(item: Item(price: 15.0))
-    
+
     // Act
     let total = cart.calculateTotal(withTaxRate: 0.1)
-    
+
     // Assert
     XCTAssertEqual(total, 27.5)
 }
@@ -272,7 +275,7 @@ func test_calculateTotal_withValidItems_returnsSumWithTax() {
 - Include code examples for complex interfaces
 - Use MARK comments to organize code sections
 
-```swift
+````swift
 /// Processes an order for the specified product.
 ///
 /// This method handles the entire order processing workflow including:
@@ -303,7 +306,7 @@ func test_calculateTotal_withValidItems_returnsSumWithTax() {
 func process(product: Product, quantity: Int, paymentMethod: PaymentMethod) throws -> OrderConfirmation {
     // Implementation
 }
-```
+````
 
 ## Architecture
 

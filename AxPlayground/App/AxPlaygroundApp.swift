@@ -2,7 +2,7 @@
 //  AxPlaygroundApp.swift
 //  AxPlayground
 //
-//  Created by Piotr Pasztor on 29/11/2025.
+//  Created by Kamil Moskała on 29/11/2025.
 //
 
 import SwiftUI
