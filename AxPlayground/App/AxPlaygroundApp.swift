@@ -43,7 +43,7 @@ struct AxPlaygroundApp: App {
         }
         .defaultLaunchBehavior(.suppressed)
 
-        MenuBarExtra("AxPlayground", systemImage: "bolt.fill") {
+        MenuBarExtra("szpontOS", systemImage: "bolt.fill") {
             MenuBarView(
                 taskItems: $taskItems,
                 accessibilityMonitor: accessibilityMonitor,

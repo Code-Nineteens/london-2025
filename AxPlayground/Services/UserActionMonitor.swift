@@ -317,7 +317,7 @@ final class UserActionMonitor: ObservableObject {
     }
     
     private func reportAction(_ action: UserAction) {
-        if action.appName == "AxPlayground" { return }
+        if action.appName == "szpontOS" { return }
         
         let trimmedDetails = action.details.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmedDetails.isEmpty { return }
