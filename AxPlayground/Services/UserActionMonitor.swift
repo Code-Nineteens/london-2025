@@ -17,6 +17,7 @@ final class UserActionMonitor: ObservableObject {
     
     static let shared = UserActionMonitor()
     
+    
     @Published var isMonitoring = false
     @Published var actionLog: [UserAction] = []
     
@@ -30,6 +31,7 @@ final class UserActionMonitor: ObservableObject {
     private var textDebounceTimer: Timer?
     private var pendingTextAction: UserAction?
     private var lastReportedAction: String = ""
+    
     private var lastReportTime: Date = .distantPast
     
     struct UserAction: Identifiable {
@@ -38,6 +40,7 @@ final class UserActionMonitor: ObservableObject {
         let actionType: ActionType
         let appName: String
         let details: String
+        let rawNotification: String? // Raw AX notification name
         
         enum ActionType: String {
             case appLaunched = "🚀 App Launched"
@@ -69,12 +72,7 @@ final class UserActionMonitor: ObservableObject {
         setupWorkspaceObservers()
         setupAccessibilityObservers()
         
-        reportAction(UserAction(
-            timestamp: Date(),
-            actionType: .appActivated,
-            appName: lastActiveApp ?? "Unknown",
-            details: "Monitoring started"
-        ))
+        // Nie logujemy sztucznych eventów "Monitoring started"
     }
     
     func stopMonitoring() {
@@ -116,7 +114,8 @@ final class UserActionMonitor: ObservableObject {
                     timestamp: Date(),
                     actionType: .appLaunched,
                     appName: appName,
-                    details: "Application started"
+                    details: "Application started",
+                    rawNotification: "NSWorkspace.didLaunchApplication"
                 ))
             }
         }
@@ -135,7 +134,8 @@ final class UserActionMonitor: ObservableObject {
                     timestamp: Date(),
                     actionType: .appQuit,
                     appName: appName,
-                    details: "Application closed"
+                    details: "Application closed",
+                    rawNotification: "NSWorkspace.didTerminateApplication"
                 ))
             }
         }
@@ -158,7 +158,8 @@ final class UserActionMonitor: ObservableObject {
                         timestamp: Date(),
                         actionType: .appActivated,
                         appName: appName,
-                        details: "Switched to this app"
+                        details: "Switched to this app",
+                        rawNotification: "NSWorkspace.didActivateApplication"
                     ))
                     self.setupAXObserver(for: app)
                 }
@@ -257,21 +258,24 @@ final class UserActionMonitor: ObservableObject {
                         timestamp: Date(),
                         actionType: .focusChanged,
                         appName: appName,
-                        details: "Text field: \(elementName.isEmpty ? "(unnamed)" : elementName)"
+                        details: "Role: \(role) | Element: \(elementName.isEmpty ? "(unnamed)" : elementName)",
+                        rawNotification: kAXFocusedUIElementChangedNotification
                     ))
                 } else if role == "AXButton" || role == "AXLink" {
                     reportAction(UserAction(
                         timestamp: Date(),
                         actionType: .buttonClicked,
                         appName: appName,
-                        details: elementName
+                        details: "Role: \(role) | Element: \(elementName)",
+                        rawNotification: kAXFocusedUIElementChangedNotification
                     ))
                 } else if role == "AXMenuItem" {
                     reportAction(UserAction(
                         timestamp: Date(),
                         actionType: .menuSelected,
                         appName: appName,
-                        details: elementName
+                        details: "Role: \(role) | Element: \(elementName)",
+                        rawNotification: kAXFocusedUIElementChangedNotification
                     ))
                 }
             }
@@ -292,7 +296,8 @@ final class UserActionMonitor: ObservableObject {
                             timestamp: Date(),
                             actionType: .textEntered,
                             appName: appName,
-                            details: String(value.suffix(50))
+                            details: "Role: \(role) | Value: \(String(value.suffix(50)))",
+                            rawNotification: kAXValueChangedNotification
                         )
                         textDebounceTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: false) { [weak self] _ in
                             Task { @MainActor in

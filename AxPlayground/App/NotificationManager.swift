@@ -2,31 +2,30 @@ import SwiftUI
 import Combine
 import AppKit
 
-/// Globalny manager do pokazywania powiadomień jako overlay w prawym górnym rogu
+/// Global manager for showing Dynamic Island style notifications at top center
 @MainActor
 final class NotificationManager: ObservableObject {
     static let shared = NotificationManager()
-    
+
     @Published var isShowing = false
-    @Published var title = "Powiadomienie"
+    @Published var isVisible = false
+    @Published var title = "Notification"
     @Published var message: String? = nil
     @Published var icon: String? = "bell.fill"
-    
+
     private var overlayWindow: NSWindow?
     private var dismissTimer: Timer?
-    
+
     // Action callbacks
-    private var onAddToQueue: (() -> Void)?
     private var onInsertNow: (() -> Void)?
-    private var onReject: (() -> Void)?
-    
+
     private init() {}
-    
+
     func show(
         title: String,
         message: String? = nil,
         icon: String? = "bell.fill",
-        autoDismissAfter: TimeInterval = 5.0,
+        autoDismissAfter: TimeInterval = 8.0,
         onAddToQueue: (() -> Void)? = nil,
         onInsertNow: (() -> Void)? = nil,
         onReject: (() -> Void)? = nil
@@ -34,139 +33,128 @@ final class NotificationManager: ObservableObject {
         self.title = title
         self.message = message
         self.icon = icon
-        self.onAddToQueue = onAddToQueue
         self.onInsertNow = onInsertNow
-        self.onReject = onReject
         self.isShowing = true
-        
-        showOverlayWindow()
-        
-        // Auto-dismiss po określonym czasie
+        self.isVisible = true
+
+        showDynamicIsland()
+
+        // Auto-dismiss after specified time
         dismissTimer?.invalidate()
         dismissTimer = Timer.scheduledTimer(withTimeInterval: autoDismissAfter, repeats: false) { [weak self] _ in
+            guard let self else { return }
             Task { @MainActor in
-                self?.hide()
+                self.hide()
             }
         }
     }
-    
+
     func hide() {
         dismissTimer?.invalidate()
         dismissTimer = nil
-        hideOverlayWindow()
-        isShowing = false
+
+        // Trigger scale down animation
+        isVisible = false
+
+        // Wait for animation to complete before removing window (0.15 content fade + 0.3 scale)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            self?.hideDynamicIsland()
+            self?.isShowing = false
+        }
     }
-    
+
     // MARK: - Private Methods
-    
-    private func showOverlayWindow() {
-        // Zamknij poprzednie okno jeśli istnieje
+
+    private func showDynamicIsland() {
+        // Close previous window if exists
         overlayWindow?.orderOut(nil)
         overlayWindow = nil
-        
+
         guard let screen = NSScreen.main else { return }
-        
-        // Rozmiar powiadomienia
-        let notificationWidth: CGFloat = 320
-        let notificationHeight: CGFloat = 140
-        let padding: CGFloat = 16
-        let topPadding: CGFloat = 8 // Tuż pod menu bar
-        
-        // Pozycja w prawym górnym rogu
-        let windowX = screen.frame.maxX - notificationWidth - padding
-        let windowY = screen.frame.maxY - notificationHeight - topPadding
-        
+
+        // Dynamic Island dimensions (extra width for inverted corners)
+        let maxWidth: CGFloat = 380 + (28 * 2) // base width + inverted radius on each side
+        let maxHeight: CGFloat = 160
+
+        // Position at top center of screen (where the notch would be)
+        let windowX = screen.frame.midX - maxWidth / 2
+        let windowY = screen.frame.maxY - maxHeight // No top margin - aligned with top
+
         let windowFrame = NSRect(
             x: windowX,
             y: windowY,
-            width: notificationWidth,
-            height: notificationHeight
+            width: maxWidth,
+            height: maxHeight
         )
-        
-        // Małe okno tylko na powiadomienie
+
+        // Create window
         let window = NSWindow(
             contentRect: windowFrame,
             styleMask: [.borderless],
             backing: .buffered,
             defer: false
         )
-        
-        window.level = .floating
+
+        window.level = .screenSaver // Above everything including menu bar
         window.isOpaque = false
         window.backgroundColor = .clear
         window.hasShadow = false
-        window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]
+        window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
         window.isReleasedWhenClosed = false
-        
-        // SwiftUI content
-        let contentView = NotificationContentView(
+        window.ignoresMouseEvents = false
+
+        // SwiftUI content with binding to isVisible
+        let contentView = DynamicIslandContainerView(
             title: title,
             message: message,
             icon: icon,
-            onClose: { [weak self] in
-                self?.hide()
-            },
-            onAddToQueue: onAddToQueue,
-            onInsertNow: onInsertNow,
-            onReject: onReject
+            manager: self,
+            onInsertNow: onInsertNow
         )
-        
+
         let hostingView = NSHostingView(rootView: contentView)
-        hostingView.frame = NSRect(x: 0, y: 0, width: notificationWidth, height: notificationHeight)
+        hostingView.frame = NSRect(x: 0, y: 0, width: maxWidth, height: maxHeight)
         window.contentView = hostingView
-        
-        // Animacja pojawienia się (slide in from top)
-        window.setFrameOrigin(NSPoint(x: windowX, y: windowY + 20))
+
+        // Show with fade in
         window.alphaValue = 0
         window.orderFrontRegardless()
-        
+
         NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0.3
+            context.duration = 0.2
             context.timingFunction = CAMediaTimingFunction(name: .easeOut)
-            window.animator().setFrameOrigin(NSPoint(x: windowX, y: windowY))
             window.animator().alphaValue = 1
         }
-        
+
         overlayWindow = window
     }
-    
-    private func hideOverlayWindow() {
+
+    private func hideDynamicIsland() {
         guard let window = overlayWindow else { return }
-        
-        let currentFrame = window.frame
-        
-        NSAnimationContext.runAnimationGroup({ context in
-            context.duration = 0.25
-            context.timingFunction = CAMediaTimingFunction(name: .easeIn)
-            window.animator().setFrameOrigin(NSPoint(x: currentFrame.origin.x, y: currentFrame.origin.y + 20))
-            window.animator().alphaValue = 0
-        }, completionHandler: { [weak self] in
-            window.orderOut(nil)
-            self?.overlayWindow = nil
-        })
+        window.orderOut(nil)
+        overlayWindow = nil
     }
 }
 
-// MARK: - Notification Content View
+// MARK: - Container View for Binding
 
-private struct NotificationContentView: View {
+private struct DynamicIslandContainerView: View {
     let title: String
     let message: String?
     let icon: String?
-    let onClose: () -> Void
-    let onAddToQueue: (() -> Void)?
+    @ObservedObject var manager: NotificationManager
     let onInsertNow: (() -> Void)?
-    let onReject: (() -> Void)?
-    
+
     var body: some View {
-        GlassNotificationView(
+        DynamicIslandView(
             title: title,
             message: message,
             icon: icon,
-            onClose: onClose,
-            onAddToQueue: onAddToQueue,
+            onClose: {
+                manager.hide()
+            },
             onInsertNow: onInsertNow,
-            onReject: onReject
+            isVisible: $manager.isVisible
         )
     }
 }

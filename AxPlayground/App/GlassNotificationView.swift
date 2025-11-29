@@ -79,33 +79,8 @@ struct GlassNotificationView: View {
                 .opacity(isHovering ? 1 : 0.6)
             }
 
-            // Action buttons
+            // Action button
             HStack(spacing: 10) {
-                // Add to Queue button
-                Button {
-                    onAddToQueue?()
-                    onClose?()
-                } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: "text.badge.plus")
-                            .font(.system(size: 11, weight: .medium))
-                        Text("Queue")
-                            .font(.system(size: 11, weight: .medium, design: .rounded))
-                    }
-                    .foregroundStyle(.primary.opacity(0.8))
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 7)
-                    .background(
-                        Capsule()
-                            .fill(.primary.opacity(0.08))
-                    )
-                    .overlay(
-                        Capsule()
-                            .strokeBorder(.primary.opacity(0.1), lineWidth: 0.5)
-                    )
-                }
-                .buttonStyle(.plain)
-                
                 // Insert Now button (primary action)
                 Button {
                     onInsertNow?()
@@ -139,8 +114,29 @@ struct GlassNotificationView: View {
             }
         }
         .padding(16)
-        .frame(width: 300)
-        .liquidGlass()
+        .frame(minWidth: 200, maxWidth: 320)
+        .fixedSize()
+        .background(
+            RoundedRectangle(cornerRadius: 20)
+                .fill(.ultraThinMaterial)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 20)
+                        .stroke(
+                            LinearGradient(
+                                colors: [
+                                    Color.white.opacity(0.5),
+                                    Color.white.opacity(0.2),
+                                    Color.clear,
+                                    Color.white.opacity(0.1)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            lineWidth: 1
+                        )
+                )
+                .shadow(color: Color.black.opacity(0.2), radius: 20, x: 0, y: 10)
+        )
         .onHover { hovering in
             withAnimation(.easeInOut(duration: 0.2)) {
                 isHovering = hovering
