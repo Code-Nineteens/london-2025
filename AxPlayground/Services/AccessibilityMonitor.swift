@@ -13,8 +13,9 @@ import Combine
 final class AccessibilityMonitor: ObservableObject, AccessibilityMonitoring {
     
     // MARK: - Published Properties
-    
+
     @Published var hasPermission = false
+    @Published var isMonitoring = false
     @Published var events: [AccessibilityEvent] = []
     @Published var currentInputField: InputFieldInfo?
     @Published var showOverlay = false
@@ -73,10 +74,11 @@ final class AccessibilityMonitor: ObservableObject, AccessibilityMonitoring {
         }
         
         print("✅ Starting accessibility monitor...")
-        
+
         setupMouseEventTap()
         setupKeyboardEventTap()
-        
+
+        isMonitoring = true
         print("🎯 Monitor is active. Press Cmd+Shift+S on an input field to show suggestions!")
     }
     
@@ -90,6 +92,7 @@ final class AccessibilityMonitor: ObservableObject, AccessibilityMonitoring {
         keyboardRunLoopSource = nil
         
         hideOverlay()
+        isMonitoring = false
         print("⏹️ Monitor stopped")
     }
     
