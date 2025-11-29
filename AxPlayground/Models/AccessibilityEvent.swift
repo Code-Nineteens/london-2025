@@ -8,7 +8,7 @@
 import Foundation
 
 /// Represents a captured accessibility event from user interaction.
-struct AccessibilityEvent: Identifiable {
+struct AccessibilityEvent: Identifiable, Sendable {
     let id = UUID()
     let timestamp: Date
     let appName: String

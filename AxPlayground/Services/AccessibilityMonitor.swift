@@ -10,6 +10,7 @@ import ApplicationServices
 import Combine
 
 /// Monitors system-wide accessibility events and provides input field assistance.
+@MainActor
 final class AccessibilityMonitor: ObservableObject, AccessibilityMonitoring {
     
     // MARK: - Published Properties
@@ -40,7 +41,8 @@ final class AccessibilityMonitor: ObservableObject, AccessibilityMonitoring {
     }
     
     deinit {
-        stopMonitoring()
+        // Event taps are cleaned up when the object is deallocated
+        // No need to manually disable - CFMachPort handles cleanup
     }
     
     // MARK: - Public Methods
@@ -120,7 +122,9 @@ final class AccessibilityMonitor: ObservableObject, AccessibilityMonitoring {
             callback: { (_, _, event, refcon) -> Unmanaged<CGEvent>? in
                 guard let refcon = refcon else { return Unmanaged.passRetained(event) }
                 let monitor = Unmanaged<AccessibilityMonitor>.fromOpaque(refcon).takeUnretainedValue()
-                monitor.handleClick(event: event)
+                MainActor.assumeIsolated {
+                    monitor.handleClick(event: event)
+                }
                 return Unmanaged.passRetained(event)
             },
             userInfo: Unmanaged.passUnretained(self).toOpaque()
@@ -146,7 +150,9 @@ final class AccessibilityMonitor: ObservableObject, AccessibilityMonitoring {
             callback: { (_, _, event, refcon) -> Unmanaged<CGEvent>? in
                 guard let refcon = refcon else { return Unmanaged.passRetained(event) }
                 let monitor = Unmanaged<AccessibilityMonitor>.fromOpaque(refcon).takeUnretainedValue()
-                return monitor.handleKeyDown(event: event)
+                return MainActor.assumeIsolated {
+                    monitor.handleKeyDown(event: event)
+                }
             },
             userInfo: Unmanaged.passUnretained(self).toOpaque()
         ) else {

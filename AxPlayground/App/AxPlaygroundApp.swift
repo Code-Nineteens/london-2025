@@ -16,21 +16,27 @@ struct AxPlaygroundApp: App {
 
         MenuBarExtra("AxPlayground", systemImage: "bolt.fill") {
             VStack(alignment: .leading, spacing: 12) {
-                Text("AxPlayground")
-                    .font(.headline)
-
-                Button("Pokaż okno") {
+                Button {
                     NSApplication.shared.activate(ignoringOtherApps: true)
+                    NotificationManager.shared.show(
+                        title: "Suggestion",
+                        message: "You can use this app to test accessibility features.",
+                        icon: "bolt.fill"
+                    )
+                } label: {
+                    Label("Show suggestion", systemImage: "bell.fill")
                 }
-
-                Button("Zakończ") {
+                .buttonStyle(.borderedProminent)
+                
+                Button {
                     NSApplication.shared.terminate(nil)
+                } label: {
+                    Label("Zakończ", systemImage: "xmark.circle")
                 }
+                .buttonStyle(.bordered)
             }
             .padding(16)
-            .frame(width: 260)
             .background(.ultraThinMaterial)
-            .cornerRadius(16)
         }
         .menuBarExtraStyle(.window)
     }

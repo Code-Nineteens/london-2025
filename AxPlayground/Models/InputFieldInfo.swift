@@ -8,6 +8,7 @@
 import ApplicationServices
 
 /// Holds information about a focused input field for overlay display.
+@MainActor
 final class InputFieldInfo {
     
     // MARK: - Properties
