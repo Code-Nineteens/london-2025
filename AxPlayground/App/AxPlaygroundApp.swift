@@ -13,7 +13,7 @@ struct AxPlaygroundApp: App {
 
     
     init() {
-        DevinHelper.loadEnv()
+        EnvManager.shared.loadSilently()
         setupNotificationObserver()
     }
   
@@ -271,6 +271,17 @@ struct MenuBarView: View {
             MenuItemButton(title: "Open Dashboard", systemImage: "macwindow") {
                 openWindow(id: "dashboard")
                 NSApp.activate(ignoringOtherApps: true)
+            }
+
+            MenuItemButton(title: "Run Devin", systemImage: "cpu") {
+                Task {
+                    do {
+                        let session = try await DevinHelper.solveIssue(issueURL: "https://github.com/Code-Nineteens/london-2025/issues/7")
+                        print("✅ Devin session created: \(session.sessionId)")
+                    } catch {
+                        print("❌ Devin error: \(error.localizedDescription)")
+                    }
+                }
             }
 
             MenuItemButton(title: "Show Notification", systemImage: "bell.fill") {

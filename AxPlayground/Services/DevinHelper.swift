@@ -6,7 +6,6 @@
 //
 
 import Cocoa
-import SwiftDotenv
 
 /// Helper for integrating with Devin AI (https://api.devin.ai/v1)
 struct DevinHelper {
@@ -17,41 +16,9 @@ struct DevinHelper {
     private static let webAppURL = "https://app.devin.ai"
     private static let currentIssueURL = "https://github.com/Code-Nineteens/london-2025/issues/7"
     
-    /// API key from .env file
+    /// API key from EnvManager.
     private static var apiKey: String? {
-        // Dotenv returns Value enum, need to extract string
-        guard let value = Dotenv["DEVIN_API_KEY"] else { return nil }
-        
-        // Value is enum like .string("..."), extract the actual string
-        switch value {
-        case .string(let str):
-            return str
-        case .boolean(let bool):
-            return String(bool)
-        case .integer(let int):
-            return String(int)
-        case .double(let dbl):
-            return String(dbl)
-        }
-    }
-    
-    /// Load .env file - call once at app start
-    static func loadEnv() {
-        print("🔍 Current directory: \(FileManager.default.currentDirectoryPath)")
-        
-        do {
-            try Dotenv.configure()
-            print("✅ Loaded .env")
-            
-            // Debug: check if key exists
-            if let key = Dotenv["DEVIN_API_KEY"] {
-                print("✅ DEVIN_API_KEY found: \(String(describing: key).prefix(30))...")
-            } else {
-                print("⚠️ DEVIN_API_KEY not found in environment")
-            }
-        } catch {
-            print("⚠️ Could not load .env: \(error)")
-        }
+        EnvManager.shared[.devinAPIKey]
     }
     
     // MARK: - Types
@@ -87,8 +54,8 @@ struct DevinHelper {
         guard let apiKey = apiKey else {
             throw DevinError.apiKeyMissing
         }
-        
-        let prompt = "fix this issue: \(issueURL)"
+            
+        let prompt = "fix this issue: \(issueURL). Be very precise"
         let session = try await createSession(prompt: prompt, apiKey: apiKey)
         openSession(session)
         return session
