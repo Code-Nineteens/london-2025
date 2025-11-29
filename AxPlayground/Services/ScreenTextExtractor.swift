@@ -30,16 +30,37 @@ final class ScreenTextExtractor {
         return allText.joined(separator: "\n")
     }
     
-    /// Extracts all visible text from all windows on screen
+    /// Extracts all visible text from all windows on screen (only visible area)
     func extractAllScreenText() -> String {
-        let systemWide = AXUIElementCreateSystemWide()
+        guard let screen = NSScreen.main else { return "" }
+        let screenRect = screen.frame
         
         var allText: [String] = []
         
-        // Get all running applications
+        // Get only visible windows and extract text from visible area
         for app in NSWorkspace.shared.runningApplications where app.activationPolicy == .regular {
             let appElement = AXUIElementCreateApplication(app.processIdentifier)
-            extractTextFromElement(appElement, into: &allText)
+            
+            // Get windows of this app
+            var windowsValue: AnyObject?
+            guard AXUIElementCopyAttributeValue(appElement, kAXWindowsAttribute as CFString, &windowsValue) == .success,
+                  let windows = windowsValue as? [AXUIElement] else {
+                continue
+            }
+            
+            // Only process visible windows
+            for window in windows {
+                let position = extractPosition(from: window)
+                let size = extractSize(from: window)
+                let windowRect = CGRect(origin: position, size: size)
+                
+                // Skip if window is not on screen
+                guard screenRect.intersects(windowRect) else { continue }
+                
+                // Extract text only from visible portion
+                let visibleRect = screenRect.intersection(windowRect)
+                extractTextFromElementFast(window, visibleRect: visibleRect, into: &allText)
+            }
         }
         
         return allText.joined(separator: "\n")
@@ -118,6 +139,40 @@ final class ScreenTextExtractor {
         
         for child in childArray {
             extractTextFromElementInArea(child, rect: rect, into: &texts, depth: depth + 1)
+        }
+    }
+    
+    /// Fast extraction - only checks visible elements, limits depth
+    private func extractTextFromElementFast(_ element: AXUIElement, visibleRect: CGRect, into texts: inout [String], depth: Int = 0) {
+        // Limit depth for speed
+        guard depth < 15 else { return }
+        
+        // Check if element is visible
+        let position = extractPosition(from: element)
+        let size = extractSize(from: element)
+        
+        // Skip zero-size elements
+        guard size.width > 0 && size.height > 0 else { return }
+        
+        let elementRect = CGRect(origin: position, size: size)
+        
+        // Skip if completely outside visible area
+        guard visibleRect.intersects(elementRect) else { return }
+        
+        // Extract text from this element
+        if let text = getTextFromElement(element), !text.isEmpty, text.count < 1000 {
+            texts.append(text)
+        }
+        
+        // Get children and recurse
+        var children: AnyObject?
+        let error = AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &children)
+        
+        guard error == .success, let childArray = children as? [AXUIElement] else { return }
+        
+        // Limit number of children to process
+        for child in childArray.prefix(50) {
+            extractTextFromElementFast(child, visibleRect: visibleRect, into: &texts, depth: depth + 1)
         }
     }
     
