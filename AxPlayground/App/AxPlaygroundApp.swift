@@ -114,6 +114,13 @@ struct AxPlaygroundApp: App {
                 } label: {
                     Label("Extract Screen Text", systemImage: "text.viewfinder")
                 }
+                .buttonStyle(.borderedProminent)
+                
+                Button {
+                    MailHelper.openMailApp()
+                } label: {
+                    Label("Open Mail", systemImage: "envelope.fill")
+                }
                 .buttonStyle(.bordered)
                 
                 Divider()
