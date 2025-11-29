@@ -12,6 +12,7 @@ struct AxPlaygroundApp: App {
 
     @StateObject private var accessibilityMonitor = AccessibilityMonitor()
     @StateObject private var notificationObserver = NotificationCenterObserver.shared
+    @StateObject private var textMonitor = ScreenTextMonitor.shared
 
     @State private var taskItems: [TaskItem] = [
         TaskItem(title: "Review accessibility events", status: .completed),
@@ -24,6 +25,7 @@ struct AxPlaygroundApp: App {
         TaskItem(title: "Create usage report", status: .idle),
         TaskItem(title: "Setup automated alerts", status: .idle)
     ]
+
 
     var body: some Scene {
         Window("Dashboard", id: "dashboard") {
