@@ -9,132 +9,329 @@ import SwiftUI
 
 @main
 struct AxPlaygroundApp: App {
-    
+
+    @StateObject private var accessibilityMonitor = AccessibilityMonitor()
+    @StateObject private var notificationObserver = NotificationCenterObserver.shared
     @StateObject private var textMonitor = ScreenTextMonitor.shared
-    
+
+    @State private var taskItems: [TaskItem] = [
+        TaskItem(title: "Review accessibility events", status: .completed),
+        TaskItem(title: "Analyze click patterns", status: .completed),
+        TaskItem(title: "Configure monitoring filters", status: .inProgress),
+        TaskItem(title: "Debug keyboard shortcuts", status: .inProgress),
+        TaskItem(title: "Export captured data", status: .idle),
+        TaskItem(title: "Add custom event filters", status: .idle),
+        TaskItem(title: "Implement batch processing", status: .idle),
+        TaskItem(title: "Create usage report", status: .idle),
+        TaskItem(title: "Setup automated alerts", status: .idle)
+    ]
+
+
     var body: some Scene {
-        WindowGroup {
+        Window("Dashboard", id: "dashboard") {
             ContentView()
+                .environmentObject(accessibilityMonitor)
         }
-        
+        .defaultLaunchBehavior(.suppressed)
+
         MenuBarExtra("AxPlayground", systemImage: "bolt.fill") {
-            VStack(alignment: .leading, spacing: 12) {
-                // Monitor toggle
-                Button {
-                    if textMonitor.isMonitoring {
-                        textMonitor.stopMonitoring()
-                    } else {
-                        textMonitor.startMonitoring { change in
-                            // Show notification for each text change
-                            let typeIcon: String
-                            let typeText: String
-                            
-                            switch change.changeType {
-                            case .added:
-                                typeIcon = "plus.circle.fill"
-                                typeText = "New text"
-                            case .modified:
-                                typeIcon = "pencil.circle.fill"
-                                typeText = "Changed"
-                            case .removed:
-                                typeIcon = "minus.circle.fill"
-                                typeText = "Removed"
-                            }
-                            
-                            // Only show content for Added/Modified. For Removed, just show generic message to avoid confusion with old history.
-                            let message: String
-                            if change.changeType == .removed {
-                                message = "Element disappeared"
-                            } else {
-                                message = String(change.newText.prefix(80))
-                            }
-                            
-                            NotificationManager.shared.show(
-                                title: "\(typeText) in \(change.appName)",
-                                message: message,
-                                icon: typeIcon
-                            )
-                            
-                            // Log to file (keep full details for debugging)
-                            let timestamp = ISO8601DateFormatter().string(from: Date())
-                            let logLine = "[\(timestamp)] [\(change.appName)] \(typeText): \"\(change.newText)\" (Old: \"\(change.oldText ?? "")\")\n"
-                            
-                            if let desktopURL = FileManager.default.urls(for: .desktopDirectory, in: .userDomainMask).first {
-                                let fileURL = desktopURL.appendingPathComponent("ax_changes_log.txt")
-                                if !FileManager.default.fileExists(atPath: fileURL.path) {
-                                    try? "".write(to: fileURL, atomically: true, encoding: .utf8)
-                                }
-                                if let fileHandle = try? FileHandle(forWritingTo: fileURL) {
-                                    fileHandle.seekToEndOfFile()
-                                    if let data = logLine.data(using: .utf8) {
-                                        fileHandle.write(data)
-                                    }
-                                    try? fileHandle.close()
-                                }
-                            }
-                            
-                            print("📝 [\(change.appName)] \(typeText): \(change.newText)")
-                        }
-                    }
-                } label: {
-                    Label(
-                        textMonitor.isMonitoring ? "Stop Monitoring" : "Start Monitoring",
-                        systemImage: textMonitor.isMonitoring ? "stop.circle.fill" : "play.circle.fill"
-                    )
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(textMonitor.isMonitoring ? .red : .accentColor)
-                
-                // Extract once
-                Button {
-                    let visibleText = ScreenTextExtractor.shared.extractAllScreenText()
-                    print("📝 Extracted text from screen:\n\(visibleText)")
-                    
-                    let timestamp = ISO8601DateFormatter().string(from: Date())
-                    let fileName = "screen_text_\(timestamp.replacingOccurrences(of: ":", with: "-")).txt"
-                    let desktopURL = FileManager.default.urls(for: .desktopDirectory, in: .userDomainMask).first!
-                    let fileURL = desktopURL.appendingPathComponent(fileName)
-                    
-                    do {
-                        try visibleText.write(to: fileURL, atomically: true, encoding: .utf8)
-                        NSWorkspace.shared.open(fileURL)
-                        
-                        NotificationManager.shared.show(
-                            title: "Text Extracted",
-                            message: "Saved to Desktop: \(fileName)",
-                            icon: "doc.text.fill"
-                        )
-                    } catch {
-                        NotificationManager.shared.show(
-                            title: "Error",
-                            message: "Failed to save: \(error.localizedDescription)",
-                            icon: "exclamationmark.triangle.fill"
-                        )
-                    }
-                } label: {
-                    Label("Extract Screen Text", systemImage: "text.viewfinder")
-                }
-                .buttonStyle(.borderedProminent)
-                
-                Button {
-                    MailHelper.openMailApp()
-                } label: {
-                    Label("Open Mail", systemImage: "envelope.fill")
-                }
-                .buttonStyle(.bordered)
-                
-                Divider()
-                
-                Button {
-                    NSApplication.shared.terminate(nil)
-                } label: {
-                    Label("Quit", systemImage: "xmark.circle")
-                }
-                .buttonStyle(.bordered)
-            }
-            .padding(16)
-            .background(.ultraThinMaterial)
+            MenuBarView(
+                taskItems: $taskItems,
+                accessibilityMonitor: accessibilityMonitor,
+                notificationObserver: notificationObserver,
+                screenTextMonitor: textMonitor
+            )
         }
         .menuBarExtraStyle(.window)
+    }
+
+    init() {
+        setupNotificationObserver()
+    }
+
+    private func setupNotificationObserver() {
+        NotificationCenterObserver.shared.onNotificationDetected = { title, body in
+            NotificationManager.shared.show(
+                title: title ?? "New Notification",
+                message: body,
+                icon: "bell.fill",
+                onAddToQueue: {
+                    TaskQueueWindowController.shared.showExisting()
+                }
+            )
+        }
+
+        // Auto-start observing
+        NotificationCenterObserver.shared.startObserving()
+    }
+}
+
+// MARK: - Menu Bar View
+
+struct MenuBarView: View {
+
+    @Binding var taskItems: [TaskItem]
+    @ObservedObject var accessibilityMonitor: AccessibilityMonitor
+    @ObservedObject var notificationObserver: NotificationCenterObserver
+    @ObservedObject var screenTextMonitor: ScreenTextMonitor
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            monitoringToggles
+            Divider()
+                .padding(.vertical, 6)
+            taskQueueSection
+            Divider()
+                .padding(.vertical, 6)
+            actionButtons
+        }
+        .padding(.vertical, 8)
+        .padding(.horizontal, 6)
+        .frame(width: 320)
+    }
+
+    // MARK: - Sections
+
+    private var monitoringToggles: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            MenuItemButton(
+                title: accessibilityMonitor.isMonitoring ? "Pause Monitoring" : "Resume Monitoring",
+                systemImage: accessibilityMonitor.isMonitoring ? "pause.fill" : "play.fill"
+            ) {
+                if accessibilityMonitor.isMonitoring {
+                    accessibilityMonitor.stopMonitoring()
+                } else {
+                    accessibilityMonitor.startMonitoring()
+                }
+            }
+
+            MenuItemButton(
+                title: notificationObserver.isObserving ? "Stop Notification Observer" : "Start Notification Observer",
+                systemImage: notificationObserver.isObserving ? "bell.slash.fill" : "bell.fill"
+            ) {
+                if notificationObserver.isObserving {
+                    notificationObserver.stopObserving()
+                } else {
+                    notificationObserver.startObserving()
+                }
+            }
+
+            MenuItemButton(
+                title: screenTextMonitor.isMonitoring ? "Stop Screen Monitor" : "Start Screen Monitor",
+                systemImage: screenTextMonitor.isMonitoring ? "eye.slash.fill" : "eye.fill"
+            ) {
+                if screenTextMonitor.isMonitoring {
+                    screenTextMonitor.stopMonitoring()
+                } else {
+                    screenTextMonitor.startMonitoring { change in
+                        print("📝 Text change: \(change.changeType) in \(change.appName): \(change.newText.prefix(50))")
+                    }
+                }
+            }
+        }
+    }
+
+    private let maxVisibleTasks = 5
+
+    private var visibleItems: [Binding<TaskItem>] {
+        Array($taskItems.prefix(maxVisibleTasks))
+    }
+
+    private var hasMoreTasks: Bool {
+        taskItems.count > maxVisibleTasks
+    }
+
+    private var remainingTasksCount: Int {
+        taskItems.count - maxVisibleTasks
+    }
+
+    private var taskQueueSection: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Text("TASK QUEUE")
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .foregroundStyle(.secondary)
+
+                Spacer()
+
+                Text("\(taskItems.count)")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color.secondary.opacity(0.2))
+                    .cornerRadius(4)
+            }
+            .padding(.horizontal, 8)
+            .padding(.bottom, 4)
+
+            ForEach(visibleItems) { $item in
+                TaskItemRow(
+                    item: $item,
+                    onRun: { runTask(item) },
+                    onDelete: { deleteTask(item) }
+                )
+            }
+
+            if hasMoreTasks {
+                showMoreButton
+            }
+        }
+    }
+
+    private var showMoreButton: some View {
+        MenuItemButton(
+            title: "Show \(remainingTasksCount) more...",
+            systemImage: "ellipsis.circle"
+        ) {
+            TaskQueueWindowController.shared.show(taskItems: $taskItems)
+        }
+    }
+
+    private var actionButtons: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            MenuItemButton(title: "Open Dashboard", systemImage: "macwindow") {
+                openWindow(id: "dashboard")
+                NSApp.activate(ignoringOtherApps: true)
+            }
+
+            MenuItemButton(title: "Show Notification", systemImage: "bell.fill") {
+                NSApp.keyWindow?.close()
+                NotificationManager.shared.show(
+                    title: "Test Notification",
+                    message: "This is a test notification from the dev menu.",
+                    icon: "bell.fill",
+                    onAddToQueue: {
+                        TaskQueueWindowController.shared.show(taskItems: $taskItems)
+                    }
+                )
+            }
+
+            MenuItemButton(title: "Quit", systemImage: "power") {
+                NSApplication.shared.terminate(nil)
+            }
+        }
+    }
+
+    // MARK: - Actions
+
+    private func runTask(_ item: TaskItem) {
+        guard let index = taskItems.firstIndex(where: { $0.id == item.id }) else { return }
+        taskItems[index].status = .inProgress
+        print("Running task: \(item.title)")
+    }
+
+    private func deleteTask(_ item: TaskItem) {
+        taskItems.removeAll { $0.id == item.id }
+        print("Deleted task: \(item.title)")
+    }
+}
+
+// MARK: - Task Item Row
+
+struct TaskItemRow: View {
+
+    @Binding var item: TaskItem
+    let onRun: () -> Void
+    let onDelete: () -> Void
+
+    @State private var isHovered = false
+
+    var body: some View {
+        HStack(spacing: 8) {
+            statusIndicator
+            titleText
+            Spacer()
+            if isHovered {
+                actionButtons
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(isHovered ? Color.primary.opacity(0.1) : Color.clear)
+        .cornerRadius(4)
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.15)) {
+                isHovered = hovering
+            }
+        }
+    }
+
+    // MARK: - Subviews
+
+    private var statusIndicator: some View {
+        Image(systemName: item.status.iconName)
+            .font(.system(size: 12))
+            .foregroundStyle(item.status.color)
+            .frame(width: 14)
+    }
+
+    private var titleText: some View {
+        Text(item.title)
+            .font(.body)
+            .foregroundStyle(.primary)
+            .lineLimit(1)
+    }
+
+    private var actionButtons: some View {
+        HStack(spacing: 4) {
+            if item.status == .idle {
+                Button(action: onRun) {
+                    Image(systemName: "play.circle.fill")
+                        .font(.system(size: 16))
+                        .foregroundStyle(.blue)
+                }
+                .buttonStyle(.plain)
+                .help("Run now")
+            }
+
+            Button(action: onDelete) {
+                Image(systemName: "trash.circle.fill")
+                    .font(.system(size: 16))
+                    .foregroundStyle(.red.opacity(0.8))
+            }
+            .buttonStyle(.plain)
+            .help("Delete")
+        }
+    }
+}
+
+// MARK: - Menu Item Button
+
+struct MenuItemButton: View {
+
+    let title: String
+    var systemImage: String? = nil
+    var fontWeight: Font.Weight = .regular
+    let action: () -> Void
+
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                if let systemImage {
+                    Image(systemName: systemImage)
+                        .font(.body)
+                        .foregroundStyle(.primary)
+                        .frame(width: 16)
+                }
+                Text(title)
+                    .font(.body)
+                    .fontWeight(fontWeight)
+                    .foregroundStyle(.primary)
+                Spacer()
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(isHovered ? Color.primary.opacity(0.1) : Color.clear)
+            .cornerRadius(4)
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering in
+            isHovered = hovering
+        }
     }
 }
