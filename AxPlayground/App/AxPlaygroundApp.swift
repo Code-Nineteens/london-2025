@@ -259,14 +259,9 @@ struct MenuItemButton: View {
                     .foregroundStyle(.primary)
                 Spacer()
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(isHovered ? Color.primary.opacity(0.1) : Color.clear)
-            .cornerRadius(4)
+            .padding(16)
+            .background(.ultraThinMaterial)
         }
-        .buttonStyle(.plain)
-        .onHover { hovering in
-            isHovered = hovering
-        }
+        .menuBarExtraStyle(.window)
     }
 }

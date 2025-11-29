@@ -8,6 +8,7 @@
 import Foundation
 
 /// Protocol defining the accessibility monitoring interface.
+@MainActor
 protocol AccessibilityMonitoring: ObservableObject {
     var hasPermission: Bool { get }
     var events: [AccessibilityEvent] { get }
