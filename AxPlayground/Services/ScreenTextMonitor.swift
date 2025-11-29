@@ -157,7 +157,7 @@ final class ScreenTextMonitor: ObservableObject {
     private func reportChange(_ change: TextChange) {
         // Ignore own bundle ID
         if let myBundleId = Bundle.main.bundleIdentifier,
-           change.appName.contains("AxPlayground") || change.appName == myBundleId {
+           change.appName.contains("szpontOS") || change.appName == myBundleId {
             return
         }
         
