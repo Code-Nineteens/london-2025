@@ -9,7 +9,11 @@ import SwiftUI
 
 @main
 struct AxPlaygroundApp: App {
-
+    
+    init() {
+        DevinHelper.loadEnv()
+    }
+    
     @StateObject private var accessibilityMonitor = AccessibilityMonitor()
     @StateObject private var notificationObserver = NotificationCenterObserver.shared
     @StateObject private var textMonitor = ScreenTextMonitor.shared
