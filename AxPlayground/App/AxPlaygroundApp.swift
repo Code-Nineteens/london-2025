@@ -9,11 +9,18 @@ import SwiftUI
 
 @main
 struct AxPlaygroundApp: App {
+    
+    @State private var items: [String] = [
+        "Jakie zasady w cursor rules?",
+        "Update intro and configuration for expo",
+        "Dodanie opcji getLicense do DRM"
+    ]
+    
     var body: some Scene {
         WindowGroup {
             ContentView()
         }
-
+        
         MenuBarExtra("AxPlayground", systemImage: "bolt.fill") {
             VStack(alignment: .leading, spacing: 12) {
                 Button {
