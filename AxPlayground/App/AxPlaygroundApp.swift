@@ -10,6 +10,13 @@ import SwiftUI
 @main
 struct AxPlaygroundApp: App {
 
+
+    
+    init() {
+        DevinHelper.loadEnv()
+        setupNotificationObserver()
+    }
+  
     @StateObject private var textChangesOverlayController = TextChangesOverlayController.shared
     @StateObject private var accessibilityMonitor = AccessibilityMonitor()
     @StateObject private var notificationObserver = NotificationCenterObserver.shared
@@ -47,10 +54,6 @@ struct AxPlaygroundApp: App {
             )
         }
         .menuBarExtraStyle(.window)
-    }
-
-    init() {
-        setupNotificationObserver()
     }
 
     private func setupNotificationObserver() {
