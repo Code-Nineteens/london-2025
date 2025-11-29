@@ -1,5 +1,5 @@
-# Secrets
-Secrets.xcconfig
+.env
+.env.local
 
 # Xcode
 build/

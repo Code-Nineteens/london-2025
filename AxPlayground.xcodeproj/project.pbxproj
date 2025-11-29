@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		AA0011223344556677889900 /* SwiftDotenv in Frameworks */ = {isa = PBXBuildFile; productRef = BB0011223344556677889900 /* SwiftDotenv */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		EB2F3F302EDB3A58006169F7 /* AxPlayground.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AxPlayground.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -23,16 +27,25 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				AA0011223344556677889900 /* SwiftDotenv in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		96771AAE2EDB8F36003BA381 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 		EB2F3F272EDB3A58006169F7 = {
 			isa = PBXGroup;
 			children = (
 				EB2F3F322EDB3A58006169F7 /* AxPlayground */,
+				96771AAE2EDB8F36003BA381 /* Frameworks */,
 				EB2F3F312EDB3A58006169F7 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -65,6 +78,7 @@
 			);
 			name = AxPlayground;
 			packageProductDependencies = (
+				BB0011223344556677889900 /* SwiftDotenv */,
 			);
 			productName = AxPlayground;
 			productReference = EB2F3F302EDB3A58006169F7 /* AxPlayground.app */;
@@ -94,6 +108,9 @@
 			);
 			mainGroup = EB2F3F272EDB3A58006169F7;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				CC0011223344556677889900 /* XCRemoteSwiftPackageReference "swift-dotenv" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = EB2F3F312EDB3A58006169F7 /* Products */;
 			projectDirPath = "";
@@ -331,6 +348,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		CC0011223344556677889900 /* XCRemoteSwiftPackageReference "swift-dotenv" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/thebarndog/swift-dotenv.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		BB0011223344556677889900 /* SwiftDotenv */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = CC0011223344556677889900 /* XCRemoteSwiftPackageReference "swift-dotenv" */;
+			productName = SwiftDotenv;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = EB2F3F282EDB3A58006169F7 /* Project object */;
 }

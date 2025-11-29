@@ -10,6 +10,10 @@ import SwiftUI
 @main
 struct AxPlaygroundApp: App {
     
+    init() {
+        DevinHelper.loadEnv()
+    }
+    
     @State private var items: [String] = [
         "Jakie zasady w cursor rules?",
         "Update intro and configuration for expo",
