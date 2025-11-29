@@ -11,11 +11,10 @@ import SwiftUI
 
 /// The main view displaying accessibility monitoring controls and event list.
 struct ContentView: View {
-    
+
     // MARK: - Properties
-    
-    @StateObject private var monitor = AccessibilityMonitor()
-    @State private var isMonitoring = false
+
+    @EnvironmentObject var monitor: AccessibilityMonitor
     @State private var selectedApp: String?
     
     // MARK: - Computed Properties
@@ -73,9 +72,9 @@ struct ContentView: View {
     }
     
     private var monitorStatusIcon: some View {
-        Image(systemName: isMonitoring ? "eye.fill" : "eye.slash.fill")
+        Image(systemName: monitor.isMonitoring ? "eye.fill" : "eye.slash.fill")
             .imageScale(.large)
-            .foregroundStyle(isMonitoring ? .green : .gray)
+            .foregroundStyle(monitor.isMonitoring ? .green : .gray)
             .font(.system(size: 48))
     }
     
@@ -114,13 +113,13 @@ struct ContentView: View {
                 Label("Start", systemImage: "play.fill")
                     .frame(width: 80)
             }
-            .disabled(isMonitoring || !monitor.hasPermission)
-            
+            .disabled(monitor.isMonitoring || !monitor.hasPermission)
+
             Button(action: handleStopMonitoring) {
                 Label("Stop", systemImage: "stop.fill")
                     .frame(width: 80)
             }
-            .disabled(!isMonitoring)
+            .disabled(!monitor.isMonitoring)
         }
         .buttonStyle(.borderedProminent)
     }
@@ -232,12 +231,10 @@ struct ContentView: View {
     
     private func handleStartMonitoring() {
         monitor.startMonitoring()
-        isMonitoring = true
     }
-    
+
     private func handleStopMonitoring() {
         monitor.stopMonitoring()
-        isMonitoring = false
     }
     
     private func handleClearEvents() {
@@ -377,4 +374,5 @@ struct EventRow: View {
 
 #Preview {
     ContentView()
+        .environmentObject(AccessibilityMonitor())
 }

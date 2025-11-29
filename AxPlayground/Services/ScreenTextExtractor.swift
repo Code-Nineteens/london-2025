@@ -30,7 +30,19 @@ final class ScreenTextExtractor {
         return allText.joined(separator: "\n")
     }
     
-    /// Extracts all visible text from all windows on screen (only visible area)
+    // System apps to ignore
+    private let ignoredBundleIds: Set<String> = [
+        "com.apple.finder",           // Finder / Desktop
+        "com.apple.dock",             // Dock
+        "com.apple.controlcenter",    // Control Center
+        "com.apple.notificationcenterui", // Notification Center
+        "com.apple.systemuiserver",   // System UI (menu bar icons)
+        "com.apple.Spotlight",        // Spotlight
+        "com.apple.WindowManager",    // Window Manager
+        "com.apple.universalcontrol", // Universal Control
+    ]
+    
+    /// Extracts all visible text from all windows on screen (only visible area, no system apps)
     func extractAllScreenText() -> String {
         guard let screen = NSScreen.main else { return "" }
         let screenRect = screen.frame
@@ -39,6 +51,11 @@ final class ScreenTextExtractor {
         
         // Get only visible windows and extract text from visible area
         for app in NSWorkspace.shared.runningApplications where app.activationPolicy == .regular {
+            // Skip system apps
+            if let bundleId = app.bundleIdentifier, ignoredBundleIds.contains(bundleId) {
+                continue
+            }
+            
             let appElement = AXUIElementCreateApplication(app.processIdentifier)
             
             // Get windows of this app
@@ -142,11 +159,8 @@ final class ScreenTextExtractor {
         }
     }
     
-    /// Fast extraction - only checks visible elements, limits depth
+    /// Fast extraction - only checks visible elements
     private func extractTextFromElementFast(_ element: AXUIElement, visibleRect: CGRect, into texts: inout [String], depth: Int = 0) {
-        // Limit depth for speed
-        guard depth < 15 else { return }
-        
         // Check if element is visible
         let position = extractPosition(from: element)
         let size = extractSize(from: element)
@@ -160,7 +174,7 @@ final class ScreenTextExtractor {
         guard visibleRect.intersects(elementRect) else { return }
         
         // Extract text from this element
-        if let text = getTextFromElement(element), !text.isEmpty, text.count < 1000 {
+        if let text = getTextFromElement(element), !text.isEmpty {
             texts.append(text)
         }
         
@@ -170,8 +184,7 @@ final class ScreenTextExtractor {
         
         guard error == .success, let childArray = children as? [AXUIElement] else { return }
         
-        // Limit number of children to process
-        for child in childArray.prefix(50) {
+        for child in childArray {
             extractTextFromElementFast(child, visibleRect: visibleRect, into: &texts, depth: depth + 1)
         }
     }
