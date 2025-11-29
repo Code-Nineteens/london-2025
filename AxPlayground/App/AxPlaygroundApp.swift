@@ -10,7 +10,7 @@ import SwiftUI
 @main
 struct AxPlaygroundApp: App {
     
-    @StateObject private var textMonitor = ScreenTextMonitor.shared
+    @StateObject private var actionMonitor = UserActionMonitor.shared
     
     var body: some Scene {
         WindowGroup {
@@ -19,48 +19,37 @@ struct AxPlaygroundApp: App {
         
         MenuBarExtra("AxPlayground", systemImage: "bolt.fill") {
             VStack(alignment: .leading, spacing: 12) {
-                // Monitor toggle
+                // Action Monitor toggle
                 Button {
-                    if textMonitor.isMonitoring {
-                        textMonitor.stopMonitoring()
+                    if actionMonitor.isMonitoring {
+                        actionMonitor.stopMonitoring()
                     } else {
-                        textMonitor.startMonitoring { change in
-                            // Show notification for each text change
-                            let typeIcon: String
-                            let typeText: String
-                            
-                            switch change.changeType {
-                            case .added:
-                                typeIcon = "plus.circle.fill"
-                                typeText = "New text"
-                            case .modified:
-                                typeIcon = "pencil.circle.fill"
-                                typeText = "Changed"
-                            case .removed:
-                                typeIcon = "minus.circle.fill"
-                                typeText = "Removed"
-                            }
-                            
-                            // Only show content for Added/Modified. For Removed, just show generic message to avoid confusion with old history.
-                            let message: String
-                            if change.changeType == .removed {
-                                message = "Element disappeared"
-                            } else {
-                                message = String(change.newText.prefix(80))
+                        actionMonitor.startMonitoring { action in
+                            let icon: String
+                            switch action.actionType {
+                            case .appLaunched: icon = "app.badge.fill"
+                            case .appActivated: icon = "macwindow"
+                            case .appQuit: icon = "xmark.app.fill"
+                            case .buttonClicked: icon = "hand.tap.fill"
+                            case .textEntered: icon = "keyboard.fill"
+                            case .focusChanged: icon = "eye.fill"
+                            case .menuSelected: icon = "list.bullet"
+                            case .windowOpened: icon = "macwindow.badge.plus"
+                            case .windowClosed: icon = "macwindow.badge.minus"
                             }
                             
                             NotificationManager.shared.show(
-                                title: "\(typeText) in \(change.appName)",
-                                message: message,
-                                icon: typeIcon
+                                title: "\(action.actionType.rawValue) \(action.appName)",
+                                message: action.details,
+                                icon: icon
                             )
                             
-                            // Log to file (keep full details for debugging)
+                            // Log to file
                             let timestamp = ISO8601DateFormatter().string(from: Date())
-                            let logLine = "[\(timestamp)] [\(change.appName)] \(typeText): \"\(change.newText)\" (Old: \"\(change.oldText ?? "")\")\n"
+                            let logLine = "[\(timestamp)] \(action.actionType.rawValue) [\(action.appName)] \(action.details)\n"
                             
                             if let desktopURL = FileManager.default.urls(for: .desktopDirectory, in: .userDomainMask).first {
-                                let fileURL = desktopURL.appendingPathComponent("ax_changes_log.txt")
+                                let fileURL = desktopURL.appendingPathComponent("user_actions_log.txt")
                                 if !FileManager.default.fileExists(atPath: fileURL.path) {
                                     try? "".write(to: fileURL, atomically: true, encoding: .utf8)
                                 }
@@ -72,18 +61,16 @@ struct AxPlaygroundApp: App {
                                     try? fileHandle.close()
                                 }
                             }
-                            
-                            print("📝 [\(change.appName)] \(typeText): \(change.newText)")
                         }
                     }
                 } label: {
                     Label(
-                        textMonitor.isMonitoring ? "Stop Monitoring" : "Start Monitoring",
-                        systemImage: textMonitor.isMonitoring ? "stop.circle.fill" : "play.circle.fill"
+                        actionMonitor.isMonitoring ? "Stop Action Log" : "Start Action Log",
+                        systemImage: actionMonitor.isMonitoring ? "stop.circle.fill" : "play.circle.fill"
                     )
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(textMonitor.isMonitoring ? .red : .accentColor)
+                .tint(actionMonitor.isMonitoring ? .red : .accentColor)
                 
                 // Extract once
                 Button {
