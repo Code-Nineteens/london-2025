@@ -10,8 +10,6 @@ import SwiftUI
 @main
 struct AxPlaygroundApp: App {
 
-
-    
     init() {
         DevinHelper.loadEnv()
         setupNotificationObserver()
@@ -23,6 +21,7 @@ struct AxPlaygroundApp: App {
     @StateObject private var textMonitor = ScreenTextMonitor.shared
     @StateObject private var actionMonitor = UserActionMonitor.shared
     @StateObject private var activityLogger = ScreenActivityLogger.shared
+    @StateObject private var automationService = AutomationSuggestionService.shared
 
     @State private var taskItems: [TaskItem] = [
         TaskItem(title: "Review accessibility events", status: .completed),
@@ -50,7 +49,8 @@ struct AxPlaygroundApp: App {
                 notificationObserver: notificationObserver,
                 screenTextMonitor: textMonitor,
                 actionMonitor: actionMonitor,
-                activityLogger: activityLogger
+                activityLogger: activityLogger,
+                automationService: automationService
             )
         }
         .menuBarExtraStyle(.window)
@@ -58,18 +58,34 @@ struct AxPlaygroundApp: App {
 
     private func setupNotificationObserver() {
         NotificationCenterObserver.shared.onNotificationDetected = { title, body in
-            NotificationManager.shared.show(
-                title: title ?? "New Notification",
-                message: body,
-                icon: "bell.fill",
-                onAddToQueue: {
-                    TaskQueueWindowController.shared.showExisting()
-                }
-            )
+            // Analyze notification with AI to check if it's actionable
+            let fullText = [title, body].compactMap { $0 }.joined(separator: " ")
+            
+            print("📨 Sending to AI: \(fullText.prefix(100))")
+            
+            Task {
+                // Send to AI for analysis
+                await AutomationSuggestionService.shared.processAction(
+                    actionType: "system_notification",
+                    appName: title?.components(separatedBy: ",").first ?? "System",
+                    details: fullText
+                )
+            }
         }
 
-        // Auto-start observing
+        // Auto-start observing - notifications will be analyzed by AI
         NotificationCenterObserver.shared.startObserving()
+        
+        // Auto-enable AI suggestions (API key from environment or UserDefaults)
+        Task {
+            // API key should be set via environment variable ANTHROPIC_API_KEY
+            // or configured manually in the app
+            if let envKey = ProcessInfo.processInfo.environment["ANTHROPIC_API_KEY"] {
+                await AutomationSuggestionService.shared.configureAPIKey(envKey)
+            }
+            AutomationSuggestionService.shared.setEnabled(true)
+            print("🤖 AI Suggestions auto-enabled")
+        }
     }
 }
 
@@ -83,6 +99,7 @@ struct MenuBarView: View {
     @ObservedObject var screenTextMonitor: ScreenTextMonitor
     @ObservedObject var actionMonitor: UserActionMonitor
     @ObservedObject var activityLogger: ScreenActivityLogger
+    @ObservedObject var automationService: AutomationSuggestionService
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
@@ -204,6 +221,60 @@ struct MenuBarView: View {
                 systemImage: TextChangesOverlayController.shared.isVisible ? "eye.slash.fill" : "eye.fill"
             ) {
                 TextChangesOverlayController.shared.toggle()
+            }
+            
+            Divider()
+                .padding(.vertical, 4)
+            
+            // AI Automation Suggestions
+            MenuItemButton(
+                title: automationService.isEnabled ? "Disable AI Suggestions" : "Enable AI Suggestions",
+                systemImage: automationService.isEnabled ? "wand.and.stars.inverse" : "wand.and.stars"
+            ) {
+                Task {
+                    if automationService.isEnabled {
+                        automationService.setEnabled(false)
+                    } else {
+                        let isReady = await automationService.isReady
+                        if !isReady {
+                            // API key should be set via environment variable ANTHROPIC_API_KEY
+                            if let envKey = ProcessInfo.processInfo.environment["ANTHROPIC_API_KEY"] {
+                                await automationService.configureAPIKey(envKey)
+                            } else {
+                                print("⚠️ No ANTHROPIC_API_KEY environment variable set")
+                            }
+                        }
+                        
+                        automationService.setEnabled(true)
+                        
+                        // Start action monitor with AI processing
+                        if !actionMonitor.isMonitoring {
+                            actionMonitor.startMonitoring { action in
+                                Task {
+                                    await AutomationSuggestionService.shared.processAction(
+                                        actionType: action.rawNotification ?? "unknown",
+                                        appName: action.appName,
+                                        details: action.details
+                                    )
+                                }
+                                ScreenActivityLogger.shared.logUserAction(action)
+                            }
+                        }
+                        
+                        NotificationManager.shared.show(
+                            title: "🤖 AI Suggestions Enabled",
+                            message: "Analyzing your actions for automation opportunities",
+                            icon: "wand.and.stars"
+                        )
+                    }
+                }
+            }
+            
+            if automationService.isEnabled {
+                Text(automationService.statistics)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 8)
             }
         }
     }
