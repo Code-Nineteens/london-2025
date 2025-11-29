@@ -9,15 +9,20 @@ import SwiftUI
 
 @main
 struct AxPlaygroundApp: App {
+
+
     
     init() {
         DevinHelper.loadEnv()
         setupNotificationObserver()
     }
-    
+  
+    @StateObject private var textChangesOverlayController = TextChangesOverlayController.shared
     @StateObject private var accessibilityMonitor = AccessibilityMonitor()
     @StateObject private var notificationObserver = NotificationCenterObserver.shared
     @StateObject private var textMonitor = ScreenTextMonitor.shared
+    @StateObject private var actionMonitor = UserActionMonitor.shared
+    @StateObject private var activityLogger = ScreenActivityLogger.shared
 
     @State private var taskItems: [TaskItem] = [
         TaskItem(title: "Review accessibility events", status: .completed),
@@ -31,7 +36,6 @@ struct AxPlaygroundApp: App {
         TaskItem(title: "Setup automated alerts", status: .idle)
     ]
 
-
     var body: some Scene {
         Window("Dashboard", id: "dashboard") {
             ContentView()
@@ -44,7 +48,9 @@ struct AxPlaygroundApp: App {
                 taskItems: $taskItems,
                 accessibilityMonitor: accessibilityMonitor,
                 notificationObserver: notificationObserver,
-                screenTextMonitor: textMonitor
+                screenTextMonitor: textMonitor,
+                actionMonitor: actionMonitor,
+                activityLogger: activityLogger
             )
         }
         .menuBarExtraStyle(.window)
@@ -75,6 +81,8 @@ struct MenuBarView: View {
     @ObservedObject var accessibilityMonitor: AccessibilityMonitor
     @ObservedObject var notificationObserver: NotificationCenterObserver
     @ObservedObject var screenTextMonitor: ScreenTextMonitor
+    @ObservedObject var actionMonitor: UserActionMonitor
+    @ObservedObject var activityLogger: ScreenActivityLogger
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
@@ -129,6 +137,73 @@ struct MenuBarView: View {
                         print("📝 Text change: \(change.changeType) in \(change.appName): \(change.newText.prefix(50))")
                     }
                 }
+            }
+
+            MenuItemButton(
+                title: actionMonitor.isMonitoring ? "Stop Action Log" : "Start Action Log",
+                systemImage: actionMonitor.isMonitoring ? "stop.circle.fill" : "play.circle.fill"
+            ) {
+                if actionMonitor.isMonitoring {
+                    actionMonitor.stopMonitoring()
+                } else {
+                    actionMonitor.startMonitoring { action in
+                        let icon: String
+                        switch action.actionType {
+                        case .appLaunched: icon = "app.badge.fill"
+                        case .appActivated: icon = "macwindow"
+                        case .appQuit: icon = "xmark.app.fill"
+                        case .buttonClicked: icon = "hand.tap.fill"
+                        case .textEntered: icon = "keyboard.fill"
+                        case .focusChanged: icon = "eye.fill"
+                        case .menuSelected: icon = "list.bullet"
+                        case .windowOpened: icon = "macwindow.badge.plus"
+                        case .windowClosed: icon = "macwindow.badge.minus"
+                        }
+                        
+                        NotificationManager.shared.show(
+                            title: "\(action.actionType.rawValue) \(action.appName)",
+                            message: action.details,
+                            icon: icon
+                        )
+                        
+                        // Log to unified activity logger if it's running
+                        ScreenActivityLogger.shared.logUserAction(action)
+                    }
+                }
+            }
+            
+            MenuItemButton(
+                title: activityLogger.isLogging ? "Stop Full Activity Log" : "Start Full Activity Log",
+                systemImage: activityLogger.isLogging ? "doc.text.fill.badge.minus" : "doc.text.fill.badge.plus"
+            ) {
+                if activityLogger.isLogging {
+                    activityLogger.stopLogging()
+                } else {
+                    activityLogger.startLogging()
+                    
+                    // Also start action monitor if not already running
+                    if !actionMonitor.isMonitoring {
+                        actionMonitor.startMonitoring { action in
+                            ScreenActivityLogger.shared.logUserAction(action)
+                        }
+                    }
+                    
+                    // Show notification with log file path
+                    if let logPath = activityLogger.logFilePath {
+                        NotificationManager.shared.show(
+                            title: "📝 Activity Logging Started",
+                            message: "Saving to: \(logPath.components(separatedBy: "/").last ?? "log file")",
+                            icon: "doc.text.fill"
+                        )
+                    }
+                }
+            }
+            
+            MenuItemButton(
+                title: TextChangesOverlayController.shared.isVisible ? "Hide Text Changes Overlay" : "Show Text Changes Overlay",
+                systemImage: TextChangesOverlayController.shared.isVisible ? "eye.slash.fill" : "eye.fill"
+            ) {
+                TextChangesOverlayController.shared.toggle()
             }
         }
     }

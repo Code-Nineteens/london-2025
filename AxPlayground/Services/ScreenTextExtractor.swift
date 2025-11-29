@@ -112,8 +112,9 @@ final class ScreenTextExtractor {
     }
     
     private func extractTextFromElement(_ element: AXUIElement, into texts: inout [String], depth: Int = 0) {
-        // Limit recursion depth to avoid infinite loops
-        guard depth < 50 else { return }
+        // Limit recursion depth to avoid infinite loops (reduced from 50 to 30)
+        guard depth < 30 else { return }
+        guard texts.count < 500 else { return }  // Stop if we have enough
         
         // Extract text from this element
         if let text = getTextFromElement(element), !text.isEmpty {
@@ -132,7 +133,8 @@ final class ScreenTextExtractor {
     }
     
     private func extractTextFromElementInArea(_ element: AXUIElement, rect: CGRect, into texts: inout [String], depth: Int = 0) {
-        guard depth < 50 else { return }
+        guard depth < 30 else { return }
+        guard texts.count < 500 else { return }
         
         // Check if element is within the specified area
         let position = extractPosition(from: element)
@@ -161,22 +163,17 @@ final class ScreenTextExtractor {
     
     /// Fast extraction - only checks visible elements
     private func extractTextFromElementFast(_ element: AXUIElement, visibleRect: CGRect, into texts: inout [String], depth: Int = 0) {
-        // Check if element is visible
-        let position = extractPosition(from: element)
-        let size = extractSize(from: element)
+        // Limit depth to 25 (was unlimited before)
+        guard depth < 25 else { return }
         
-        // Skip zero-size elements
-        guard size.width > 0 && size.height > 0 else { return }
+        // Early exit: Skip if we already have too much text
+        guard texts.count < 500 else { return }
         
-        let elementRect = CGRect(origin: position, size: size)
+        // Extract text from this element FIRST (cheaper than position check)
+        let hasText = extractTextFast(element, into: &texts)
         
-        // Skip if completely outside visible area
-        guard visibleRect.intersects(elementRect) else { return }
-        
-        // Extract text from this element
-        if let text = getTextFromElement(element), !text.isEmpty {
-            texts.append(text)
-        }
+        // Only check position if we need to recurse to children
+        // This saves expensive AXUIElementCopyAttributeValue calls
         
         // Get children and recurse
         var children: AnyObject?
@@ -184,9 +181,32 @@ final class ScreenTextExtractor {
         
         guard error == .success, let childArray = children as? [AXUIElement] else { return }
         
+        // Skip if too many children (probably a container we don't care about)
+        guard childArray.count < 100 else { return }
+        
         for child in childArray {
             extractTextFromElementFast(child, visibleRect: visibleRect, into: &texts, depth: depth + 1)
         }
+    }
+    
+    /// Fast text extraction - only checks value and title (most common)
+    private func extractTextFast(_ element: AXUIElement, into texts: inout [String]) -> Bool {
+        var foundText = false
+        
+        // Only check value and title - skip description/help (rarely useful, expensive)
+        if let value = getAttributeValue(element: element, attribute: kAXValueAttribute as CFString) as? String,
+           !value.isEmpty, value.count >= 10 {
+            texts.append(value)
+            foundText = true
+        }
+        
+        if let title = getAttributeValue(element: element, attribute: kAXTitleAttribute as CFString) as? String,
+           !title.isEmpty, title.count >= 10 {
+            texts.append(title)
+            foundText = true
+        }
+        
+        return foundText
     }
     
     private func getTextFromElement(_ element: AXUIElement) -> String? {
