@@ -144,6 +144,15 @@ struct MenuBarView: View {
                 NSApp.activate(ignoringOtherApps: true)
             }
 
+            MenuItemButton(title: "Show Notification", systemImage: "bell.fill") {
+                NSApp.keyWindow?.close()
+                NotificationManager.shared.show(
+                    title: "Test Notification",
+                    message: "This is a test notification from the dev menu.",
+                    icon: "bell.fill"
+                )
+            }
+
             MenuItemButton(title: "Quit", systemImage: "power") {
                 NSApplication.shared.terminate(nil)
             }
@@ -259,9 +268,14 @@ struct MenuItemButton: View {
                     .foregroundStyle(.primary)
                 Spacer()
             }
-            .padding(16)
-            .background(.ultraThinMaterial)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(isHovered ? Color.primary.opacity(0.1) : Color.clear)
+            .cornerRadius(4)
         }
-        .menuBarExtraStyle(.window)
+        .buttonStyle(.plain)
+        .onHover { hovering in
+            isHovered = hovering
+        }
     }
 }

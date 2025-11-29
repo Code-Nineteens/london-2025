@@ -70,11 +70,13 @@ final class NotificationManager: ObservableObject {
         let notificationWidth: CGFloat = 320
         let notificationHeight: CGFloat = 140
         let padding: CGFloat = 16
-        let topPadding: CGFloat = 8 // Tuż pod menu bar
+        let topMargin: CGFloat = 50
         
         // Pozycja w prawym górnym rogu
+        // visibleFrame.maxY is below the menu bar, so topMargin adds space from there
+        let menuBarHeight = screen.frame.maxY - screen.visibleFrame.maxY
         let windowX = screen.frame.maxX - notificationWidth - padding
-        let windowY = screen.frame.maxY - notificationHeight - topPadding
+        let windowY = screen.frame.maxY - menuBarHeight - topMargin - notificationHeight
         
         let windowFrame = NSRect(
             x: windowX,
