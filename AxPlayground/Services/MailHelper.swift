@@ -62,14 +62,6 @@ struct MailHelper {
         runAppleScript(script)
     }
     
-    /// Composes an email with screen text content.
-    static func sendScreenText(_ text: String) {
-        compose(
-            subject: "Screen Text Export",
-            body: text
-        )
-    }
-    
     // MARK: - Private Methods
     
     private static func runAppleScript(_ source: String) {
