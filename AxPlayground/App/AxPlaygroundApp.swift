@@ -38,7 +38,8 @@ struct AxPlaygroundApp: App {
             MenuBarView(
                 taskItems: $taskItems,
                 accessibilityMonitor: accessibilityMonitor,
-                notificationObserver: notificationObserver
+                notificationObserver: notificationObserver,
+                screenTextMonitor: textMonitor
             )
         }
         .menuBarExtraStyle(.window)
@@ -72,6 +73,7 @@ struct MenuBarView: View {
     @Binding var taskItems: [TaskItem]
     @ObservedObject var accessibilityMonitor: AccessibilityMonitor
     @ObservedObject var notificationObserver: NotificationCenterObserver
+    @ObservedObject var screenTextMonitor: ScreenTextMonitor
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
@@ -112,6 +114,19 @@ struct MenuBarView: View {
                     notificationObserver.stopObserving()
                 } else {
                     notificationObserver.startObserving()
+                }
+            }
+
+            MenuItemButton(
+                title: screenTextMonitor.isMonitoring ? "Stop Screen Monitor" : "Start Screen Monitor",
+                systemImage: screenTextMonitor.isMonitoring ? "eye.slash.fill" : "eye.fill"
+            ) {
+                if screenTextMonitor.isMonitoring {
+                    screenTextMonitor.stopMonitoring()
+                } else {
+                    screenTextMonitor.startMonitoring { change in
+                        print("📝 Text change: \(change.changeType) in \(change.appName): \(change.newText.prefix(50))")
+                    }
                 }
             }
         }
