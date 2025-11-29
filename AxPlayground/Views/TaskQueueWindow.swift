@@ -1,5 +1,5 @@
 //
-//  TaskListWindow.swift
+//  TaskQueueWindow.swift
 //  AxPlayground
 //
 //  Created by Kamil Moskała on 29/11/2025.
@@ -7,24 +7,27 @@
 
 import SwiftUI
 
-// MARK: - Task List Window Controller
+// MARK: - Task Queue Window Controller
 
-final class TaskListWindowController {
+final class TaskQueueWindowController {
 
-    static let shared = TaskListWindowController()
+    static let shared = TaskQueueWindowController()
 
     private var window: NSWindow?
+    private var taskItems: Binding<[TaskItem]>?
 
     private init() {}
 
-    func show(todoItems: Binding<[TodoItem]>) {
+    func show(taskItems: Binding<[TaskItem]>) {
+        self.taskItems = taskItems
+
         if let existingWindow = window {
             existingWindow.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
             return
         }
 
-        let contentView = TaskListWindowContent(todoItems: todoItems)
+        let contentView = TaskQueueWindowContent(taskItems: taskItems)
 
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 380, height: 500),
@@ -48,28 +51,34 @@ final class TaskListWindowController {
         NSApp.activate(ignoringOtherApps: true)
     }
 
+    func showExisting() {
+        if let taskItems = taskItems {
+            show(taskItems: taskItems)
+        }
+    }
+
     func close() {
         window?.close()
         window = nil
     }
 }
 
-// MARK: - Task List Window Content
+// MARK: - Task Queue Window Content
 
-struct TaskListWindowContent: View {
+struct TaskQueueWindowContent: View {
 
-    @Binding var todoItems: [TodoItem]
+    @Binding var taskItems: [TaskItem]
 
-    private var completedTasks: [Binding<TodoItem>] {
-        $todoItems.filter { $0.wrappedValue.status == .completed }
+    private var completedTasks: [Binding<TaskItem>] {
+        $taskItems.filter { $0.wrappedValue.status == .completed }
     }
 
-    private var inProgressTasks: [Binding<TodoItem>] {
-        $todoItems.filter { $0.wrappedValue.status == .inProgress }
+    private var inProgressTasks: [Binding<TaskItem>] {
+        $taskItems.filter { $0.wrappedValue.status == .inProgress }
     }
 
-    private var idleTasks: [Binding<TodoItem>] {
-        $todoItems.filter { $0.wrappedValue.status == .idle }
+    private var idleTasks: [Binding<TaskItem>] {
+        $taskItems.filter { $0.wrappedValue.status == .idle }
     }
 
     var body: some View {
@@ -111,24 +120,24 @@ struct TaskListWindowContent: View {
             headerView
             Divider()
                 .padding(.horizontal, 16)
-            taskListView
+            taskQueueView
         }
         .padding(.vertical, 16)
     }
 
     private var headerView: some View {
         HStack {
-            Text("All Tasks")
+            Text("Task Queue")
                 .font(.title2)
                 .fontWeight(.semibold)
 
             Spacer()
 
-            Text("\(todoItems.count) tasks")
+            Text("\(taskItems.count) tasks")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
 
-            Button(action: { TaskListWindowController.shared.close() }) {
+            Button(action: { TaskQueueWindowController.shared.close() }) {
                 Image(systemName: "xmark.circle.fill")
                     .font(.title2)
                     .foregroundStyle(.secondary)
@@ -139,7 +148,7 @@ struct TaskListWindowContent: View {
         .padding(.bottom, 12)
     }
 
-    private var taskListView: some View {
+    private var taskQueueView: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 if !inProgressTasks.isEmpty {
@@ -147,7 +156,7 @@ struct TaskListWindowContent: View {
                 }
 
                 if !idleTasks.isEmpty {
-                    taskSection(title: "Idle", icon: "circle", color: .gray, tasks: idleTasks)
+                    taskSection(title: "Queued", icon: "circle", color: .gray, tasks: idleTasks)
                 }
 
                 if !completedTasks.isEmpty {
@@ -159,7 +168,7 @@ struct TaskListWindowContent: View {
         }
     }
 
-    private func taskSection(title: String, icon: String, color: Color, tasks: [Binding<TodoItem>]) -> some View {
+    private func taskSection(title: String, icon: String, color: Color, tasks: [Binding<TaskItem>]) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
                 Image(systemName: icon)
@@ -183,7 +192,7 @@ struct TaskListWindowContent: View {
 
             VStack(spacing: 2) {
                 ForEach(tasks) { $item in
-                    TaskListRow(
+                    TaskQueueRow(
                         item: $item,
                         onRun: { runTask(item) },
                         onDelete: { deleteTask(item) }
@@ -195,21 +204,21 @@ struct TaskListWindowContent: View {
 
     // MARK: - Actions
 
-    private func runTask(_ item: TodoItem) {
-        guard let index = todoItems.firstIndex(where: { $0.id == item.id }) else { return }
-        todoItems[index].status = .inProgress
+    private func runTask(_ item: TaskItem) {
+        guard let index = taskItems.firstIndex(where: { $0.id == item.id }) else { return }
+        taskItems[index].status = .inProgress
     }
 
-    private func deleteTask(_ item: TodoItem) {
-        todoItems.removeAll { $0.id == item.id }
+    private func deleteTask(_ item: TaskItem) {
+        taskItems.removeAll { $0.id == item.id }
     }
 }
 
-// MARK: - Task List Row
+// MARK: - Task Queue Row
 
-struct TaskListRow: View {
+struct TaskQueueRow: View {
 
-    @Binding var item: TodoItem
+    @Binding var item: TaskItem
     let onRun: () -> Void
     let onDelete: () -> Void
 

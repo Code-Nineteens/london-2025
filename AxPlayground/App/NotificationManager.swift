@@ -65,41 +65,7 @@ final class NotificationManager: ObservableObject {
         overlayWindow = nil
         
         guard let screen = NSScreen.main else { return }
-        
-        // Rozmiar powiadomienia
-        let notificationWidth: CGFloat = 320
-        let notificationHeight: CGFloat = 140
-        let padding: CGFloat = 16
-        let topMargin: CGFloat = 50
-        
-        // Pozycja w prawym górnym rogu
-        // visibleFrame.maxY is below the menu bar, so topMargin adds space from there
-        let menuBarHeight = screen.frame.maxY - screen.visibleFrame.maxY
-        let windowX = screen.frame.maxX - notificationWidth - padding
-        let windowY = screen.frame.maxY - menuBarHeight - topMargin - notificationHeight
-        
-        let windowFrame = NSRect(
-            x: windowX,
-            y: windowY,
-            width: notificationWidth,
-            height: notificationHeight
-        )
-        
-        // Małe okno tylko na powiadomienie
-        let window = NSWindow(
-            contentRect: windowFrame,
-            styleMask: [.borderless],
-            backing: .buffered,
-            defer: false
-        )
-        
-        window.level = .floating
-        window.isOpaque = false
-        window.backgroundColor = .clear
-        window.hasShadow = false
-        window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]
-        window.isReleasedWhenClosed = false
-        
+
         // SwiftUI content
         let contentView = NotificationContentView(
             title: title,
@@ -112,8 +78,44 @@ final class NotificationManager: ObservableObject {
             onInsertNow: onInsertNow,
             onReject: onReject
         )
-        
+
         let hostingView = NSHostingView(rootView: contentView)
+
+        // Calculate intrinsic size
+        let fittingSize = hostingView.fittingSize
+        let notificationWidth = min(fittingSize.width, 320)
+        let notificationHeight = fittingSize.height
+
+        let padding: CGFloat = 16
+        let topMargin: CGFloat = 50
+
+        // Pozycja w prawym górnym rogu
+        let menuBarHeight = screen.frame.maxY - screen.visibleFrame.maxY
+        let windowX = screen.frame.maxX - notificationWidth - padding
+        let windowY = screen.frame.maxY - menuBarHeight - topMargin - notificationHeight
+
+        let windowFrame = NSRect(
+            x: windowX,
+            y: windowY,
+            width: notificationWidth,
+            height: notificationHeight
+        )
+
+        // Małe okno tylko na powiadomienie
+        let window = NSWindow(
+            contentRect: windowFrame,
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false
+        )
+
+        window.level = .floating
+        window.isOpaque = false
+        window.backgroundColor = .clear
+        window.hasShadow = false
+        window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]
+        window.isReleasedWhenClosed = false
+
         hostingView.frame = NSRect(x: 0, y: 0, width: notificationWidth, height: notificationHeight)
         window.contentView = hostingView
         

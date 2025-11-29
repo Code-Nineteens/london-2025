@@ -11,17 +11,18 @@ import SwiftUI
 struct AxPlaygroundApp: App {
 
     @StateObject private var accessibilityMonitor = AccessibilityMonitor()
+    @StateObject private var notificationObserver = NotificationCenterObserver.shared
 
-    @State private var todoItems: [TodoItem] = [
-        TodoItem(title: "Review accessibility events", status: .completed),
-        TodoItem(title: "Analyze click patterns", status: .completed),
-        TodoItem(title: "Configure monitoring filters", status: .inProgress),
-        TodoItem(title: "Debug keyboard shortcuts", status: .inProgress),
-        TodoItem(title: "Export captured data", status: .idle),
-        TodoItem(title: "Add custom event filters", status: .idle),
-        TodoItem(title: "Implement batch processing", status: .idle),
-        TodoItem(title: "Create usage report", status: .idle),
-        TodoItem(title: "Setup automated alerts", status: .idle)
+    @State private var taskItems: [TaskItem] = [
+        TaskItem(title: "Review accessibility events", status: .completed),
+        TaskItem(title: "Analyze click patterns", status: .completed),
+        TaskItem(title: "Configure monitoring filters", status: .inProgress),
+        TaskItem(title: "Debug keyboard shortcuts", status: .inProgress),
+        TaskItem(title: "Export captured data", status: .idle),
+        TaskItem(title: "Add custom event filters", status: .idle),
+        TaskItem(title: "Implement batch processing", status: .idle),
+        TaskItem(title: "Create usage report", status: .idle),
+        TaskItem(title: "Setup automated alerts", status: .idle)
     ]
 
     var body: some Scene {
@@ -33,11 +34,32 @@ struct AxPlaygroundApp: App {
 
         MenuBarExtra("AxPlayground", systemImage: "bolt.fill") {
             MenuBarView(
-                todoItems: $todoItems,
-                accessibilityMonitor: accessibilityMonitor
+                taskItems: $taskItems,
+                accessibilityMonitor: accessibilityMonitor,
+                notificationObserver: notificationObserver
             )
         }
         .menuBarExtraStyle(.window)
+    }
+
+    init() {
+        setupNotificationObserver()
+    }
+
+    private func setupNotificationObserver() {
+        NotificationCenterObserver.shared.onNotificationDetected = { title, body in
+            NotificationManager.shared.show(
+                title: title ?? "New Notification",
+                message: body,
+                icon: "bell.fill",
+                onAddToQueue: {
+                    TaskQueueWindowController.shared.showExisting()
+                }
+            )
+        }
+
+        // Auto-start observing
+        NotificationCenterObserver.shared.startObserving()
     }
 }
 
@@ -45,16 +67,17 @@ struct AxPlaygroundApp: App {
 
 struct MenuBarView: View {
 
-    @Binding var todoItems: [TodoItem]
+    @Binding var taskItems: [TaskItem]
     @ObservedObject var accessibilityMonitor: AccessibilityMonitor
+    @ObservedObject var notificationObserver: NotificationCenterObserver
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            monitoringToggle
+            monitoringToggles
             Divider()
                 .padding(.vertical, 6)
-            todoSection
+            taskQueueSection
             Divider()
                 .padding(.vertical, 6)
             actionButtons
@@ -66,44 +89,57 @@ struct MenuBarView: View {
 
     // MARK: - Sections
 
-    private var monitoringToggle: some View {
-        MenuItemButton(
-            title: accessibilityMonitor.isMonitoring ? "Pause Monitoring" : "Resume Monitoring",
-            systemImage: accessibilityMonitor.isMonitoring ? "pause.fill" : "play.fill"
-        ) {
-            if accessibilityMonitor.isMonitoring {
-                accessibilityMonitor.stopMonitoring()
-            } else {
-                accessibilityMonitor.startMonitoring()
+    private var monitoringToggles: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            MenuItemButton(
+                title: accessibilityMonitor.isMonitoring ? "Pause Monitoring" : "Resume Monitoring",
+                systemImage: accessibilityMonitor.isMonitoring ? "pause.fill" : "play.fill"
+            ) {
+                if accessibilityMonitor.isMonitoring {
+                    accessibilityMonitor.stopMonitoring()
+                } else {
+                    accessibilityMonitor.startMonitoring()
+                }
+            }
+
+            MenuItemButton(
+                title: notificationObserver.isObserving ? "Stop Notification Observer" : "Start Notification Observer",
+                systemImage: notificationObserver.isObserving ? "bell.slash.fill" : "bell.fill"
+            ) {
+                if notificationObserver.isObserving {
+                    notificationObserver.stopObserving()
+                } else {
+                    notificationObserver.startObserving()
+                }
             }
         }
     }
 
     private let maxVisibleTasks = 5
 
-    private var visibleItems: [Binding<TodoItem>] {
-        Array($todoItems.prefix(maxVisibleTasks))
+    private var visibleItems: [Binding<TaskItem>] {
+        Array($taskItems.prefix(maxVisibleTasks))
     }
 
     private var hasMoreTasks: Bool {
-        todoItems.count > maxVisibleTasks
+        taskItems.count > maxVisibleTasks
     }
 
     private var remainingTasksCount: Int {
-        todoItems.count - maxVisibleTasks
+        taskItems.count - maxVisibleTasks
     }
 
-    private var todoSection: some View {
+    private var taskQueueSection: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
-                Text("TODO")
+                Text("TASK QUEUE")
                     .font(.subheadline)
                     .fontWeight(.medium)
                     .foregroundStyle(.secondary)
 
                 Spacer()
 
-                Text("\(todoItems.count)")
+                Text("\(taskItems.count)")
                     .font(.caption)
                     .foregroundStyle(.tertiary)
                     .padding(.horizontal, 6)
@@ -115,7 +151,7 @@ struct MenuBarView: View {
             .padding(.bottom, 4)
 
             ForEach(visibleItems) { $item in
-                TodoItemRow(
+                TaskItemRow(
                     item: $item,
                     onRun: { runTask(item) },
                     onDelete: { deleteTask(item) }
@@ -133,7 +169,7 @@ struct MenuBarView: View {
             title: "Show \(remainingTasksCount) more...",
             systemImage: "ellipsis.circle"
         ) {
-            TaskListWindowController.shared.show(todoItems: $todoItems)
+            TaskQueueWindowController.shared.show(taskItems: $taskItems)
         }
     }
 
@@ -149,7 +185,10 @@ struct MenuBarView: View {
                 NotificationManager.shared.show(
                     title: "Test Notification",
                     message: "This is a test notification from the dev menu.",
-                    icon: "bell.fill"
+                    icon: "bell.fill",
+                    onAddToQueue: {
+                        TaskQueueWindowController.shared.show(taskItems: $taskItems)
+                    }
                 )
             }
 
@@ -161,23 +200,23 @@ struct MenuBarView: View {
 
     // MARK: - Actions
 
-    private func runTask(_ item: TodoItem) {
-        guard let index = todoItems.firstIndex(where: { $0.id == item.id }) else { return }
-        todoItems[index].status = .inProgress
+    private func runTask(_ item: TaskItem) {
+        guard let index = taskItems.firstIndex(where: { $0.id == item.id }) else { return }
+        taskItems[index].status = .inProgress
         print("Running task: \(item.title)")
     }
 
-    private func deleteTask(_ item: TodoItem) {
-        todoItems.removeAll { $0.id == item.id }
+    private func deleteTask(_ item: TaskItem) {
+        taskItems.removeAll { $0.id == item.id }
         print("Deleted task: \(item.title)")
     }
 }
 
-// MARK: - Todo Item Row
+// MARK: - Task Item Row
 
-struct TodoItemRow: View {
+struct TaskItemRow: View {
 
-    @Binding var item: TodoItem
+    @Binding var item: TaskItem
     let onRun: () -> Void
     let onDelete: () -> Void
 

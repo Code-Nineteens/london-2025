@@ -1,5 +1,5 @@
 //
-//  TodoItem.swift
+//  TaskItem.swift
 //  AxPlayground
 //
 //  Created by Kamil Moskała on 29/11/2025.
@@ -37,9 +37,9 @@ enum TaskStatus: String, CaseIterable {
     }
 }
 
-// MARK: - Todo Item
+// MARK: - Task Item
 
-struct TodoItem: Identifiable, Equatable {
+struct TaskItem: Identifiable, Equatable {
     let id: UUID
     var title: String
     var status: TaskStatus
