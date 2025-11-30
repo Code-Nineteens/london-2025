@@ -337,18 +337,33 @@ final class ContextCollector: ObservableObject {
     
     /// Collect from UserActionMonitor event
     func collectFromUserAction(action: UserActionMonitor.UserAction) async {
-        guard isCollecting else { return }
+        guard isCollecting else { 
+            print("🔍 SKIP: not collecting")
+            return 
+        }
         
         let content = action.details
-        guard content.count >= 15 else { return }
+        guard content.count >= 15 else { 
+            print("🔍 SKIP: too short (\(content.count) chars): \(content.prefix(30))")
+            return 
+        }
         
         // Skip noise
-        if isNoise(content) { return }
+        if isNoise(content) { 
+            print("🔍 SKIP: noise detected: \(content.prefix(50))")
+            return 
+        }
         
         // Deduplicate
         let hash = content.hashValue
-        if recentHashes.contains(hash) { return }
-        if isSimilarToRecent(content) { return }
+        if recentHashes.contains(hash) { 
+            print("🔍 SKIP: duplicate hash")
+            return 
+        }
+        if isSimilarToRecent(content) { 
+            print("🔍 SKIP: similar to recent")
+            return 
+        }
         
         recentHashes.insert(hash)
         recentContents.append(content)
@@ -407,14 +422,11 @@ final class ContextCollector: ObservableObject {
     private func isNoise(_ content: String) -> Bool {
         let contentLower = content.lowercased()
         
+        // Very specific noise patterns (less aggressive)
         let noisePatterns = [
-            "cursor", "focus", "scroll", "resize",
-            "axfocused", "axvalue", "settings",
-            "preference", "debug", "log(",
-            "error:", "warning:", "info:",
+            "axfocused", "axvalue",
             "<!doctype", "<html", "<script",
-            "function()", "const ", "let ", "var ",
-            "import ", "export ", "class "
+            "function()", "console.log"
         ]
         
         for pattern in noisePatterns {
@@ -423,14 +435,14 @@ final class ContextCollector: ObservableObject {
             }
         }
         
-        // Too short or too long (likely code/logs)
-        if content.count < 20 || content.count > 5000 {
+        // Too long (likely code dump)
+        if content.count > 5000 {
             return true
         }
         
-        // Too many special characters (likely code)
+        // Too many special characters (likely code) - 15% threshold instead of 10%
         let specialChars = content.filter { "{}[]();=><".contains($0) }
-        if Double(specialChars.count) / Double(content.count) > 0.1 {
+        if Double(specialChars.count) / Double(content.count) > 0.15 {
             return true
         }
         
