@@ -22,15 +22,14 @@ final class DynamicIslandController: ObservableObject {
     @Published var isVisible = true
     
     private var orbWindow: NSWindow?
-    private var islandWindow: NSWindow?
     
     // Dimensions
     private let orbSize: CGFloat = 20
     private let margin: CGFloat = 30
-    
-    // Menu dimensions (longer than notification)
-    private let menuWidth: CGFloat = 380 + (28 * 2)
-    private let menuHeight: CGFloat = 450 // Dłuższe dla menu
+
+    // Window dimensions (needs to fit expanded state)
+    private let windowWidth: CGFloat = IslandDimensions.expandedWidth + (IslandDimensions.expandedInvertedRadius * 2) + 20
+    private let windowHeight: CGFloat = IslandDimensions.expandedHeight + 20
     
     // Position (shared between orb and island)
     private var centerX: CGFloat = 0
@@ -50,9 +49,12 @@ final class DynamicIslandController: ObservableObject {
     }
     
     func hide() {
+        if let monitor = clickMonitor {
+            NSEvent.removeMonitor(monitor)
+            clickMonitor = nil
+        }
         orbWindow?.orderOut(nil)
         orbWindow = nil
-        hideIsland()
     }
     
     func toggle() {
@@ -67,26 +69,15 @@ final class DynamicIslandController: ObservableObject {
         guard !isExpanded else { return }
         isExpanded = true
         isVisible = true
-        
-        // Hide orb
-        orbWindow?.orderOut(nil)
-        
-        // Show island
-        showIsland()
     }
-    
+
     func collapse() {
         guard isExpanded else { return }
-        
-        // Animate out
         isVisible = false
-        
-        // Wait for animation then hide
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
-            self?.hideIsland()
+
+        // Wait for animation then reset state
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
             self?.isExpanded = false
-            // Show orb again
-            self?.orbWindow?.orderFrontRegardless()
         }
     }
     
@@ -124,26 +115,26 @@ final class DynamicIslandController: ObservableObject {
         topY = screen.frame.maxY - menuBarHeight / 2
     }
     
-    // MARK: - Private - Orb Window
-    
+    // MARK: - Private - Unified Island Window
+
     private func createOrbWindow() {
-        let windowSize = orbSize + margin * 2
-        
+        guard let screen = NSScreen.main else { return }
+
+        // Position at top center, flush to top of screen
         let frame = NSRect(
-            x: centerX - windowSize / 2,
-            y: topY - windowSize / 2,
-            width: windowSize,
-            height: windowSize
+            x: screen.frame.midX - windowWidth / 2,
+            y: screen.frame.maxY - windowHeight,
+            width: windowWidth,
+            height: windowHeight
         )
-        
+
         let window = NSWindow(
             contentRect: frame,
             styleMask: [.borderless],
             backing: .buffered,
             defer: false
         )
-        
-        // High z-index but reasonable for click handling
+
         window.level = .screenSaver
         window.isOpaque = false
         window.backgroundColor = .clear
@@ -151,85 +142,26 @@ final class DynamicIslandController: ObservableObject {
         window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
         window.isReleasedWhenClosed = false
         window.ignoresMouseEvents = false
-        
-        let contentView = OrbView(controller: self, size: orbSize)
+
+        let contentView = UnifiedIslandView(controller: self)
         let hostingView = NSHostingView(rootView: contentView)
-        hostingView.frame = NSRect(x: 0, y: 0, width: windowSize, height: windowSize)
+        hostingView.frame = NSRect(x: 0, y: 0, width: windowWidth, height: windowHeight)
         window.contentView = hostingView
-        
+
         window.orderFrontRegardless()
         orbWindow = window
-    }
-    
-    // MARK: - Private - Island Window
-    
-    private func showIsland() {
-        guard let screen = NSScreen.main else { return }
-        
-        // Position at top center of screen (where the notch is)
-        let windowX = screen.frame.midX - menuWidth / 2
-        let windowY = screen.frame.maxY - menuHeight
-        
-        let frame = NSRect(
-            x: windowX,
-            y: windowY,
-            width: menuWidth,
-            height: menuHeight
-        )
-        
-        let window = NSWindow(
-            contentRect: frame,
-            styleMask: [.borderless],
-            backing: .buffered,
-            defer: false
-        )
-        
-        // High z-index, same as orb
-        window.level = .screenSaver
-        window.isOpaque = false
-        window.backgroundColor = .clear
-        window.hasShadow = false
-        window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
-        window.isReleasedWhenClosed = false
-        window.ignoresMouseEvents = false
-        
-        let contentView = IslandMenuView(controller: self)
-        let hostingView = NSHostingView(rootView: contentView)
-        hostingView.frame = NSRect(x: 0, y: 0, width: menuWidth, height: menuHeight)
-        window.contentView = hostingView
-        
-        window.alphaValue = 0
-        window.orderFrontRegardless()
-        
-        NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0.2
-            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
-            window.animator().alphaValue = 1
-        }
-        
-        islandWindow = window
+
         setupClickOutsideMonitor()
     }
     
-    private func hideIsland() {
-        if let monitor = clickMonitor {
-            NSEvent.removeMonitor(monitor)
-            clickMonitor = nil
-        }
-        islandWindow?.orderOut(nil)
-        islandWindow = nil
-    }
-    
+    // MARK: - Private - Click Outside Monitor
+
     private var clickMonitor: Any?
-    
+
     private func setupClickOutsideMonitor() {
-        if let monitor = clickMonitor {
-            NSEvent.removeMonitor(monitor)
-        }
-        
         clickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
-            guard let self = self, self.isExpanded, let window = self.islandWindow else { return }
-            
+            guard let self = self, self.isExpanded, let window = self.orbWindow else { return }
+
             let clickLocation = NSEvent.mouseLocation
             if !window.frame.contains(clickLocation) {
                 Task { @MainActor in
@@ -240,98 +172,120 @@ final class DynamicIslandController: ObservableObject {
     }
 }
 
-// MARK: - Orb View
+// MARK: - Shared Island Dimensions
 
-struct OrbView: View {
-    @ObservedObject var controller: DynamicIslandController
-    let size: CGFloat
-    
-    var body: some View {
-        ZStack {
-            SiriOrbCompact(size: size, isActive: controller.hasActivity)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .contentShape(Circle()) // Make entire area tappable, not just the ring stroke
-        .onTapGesture {
-            controller.toggle()
-        }
-    }
+enum IslandDimensions {
+    // Idle/Collapsed state
+    static let idleWidth: CGFloat = 360
+    static let idleHeight: CGFloat = 38
+    static let idleCornerRadius: CGFloat = 14
+    static let idleInvertedRadius: CGFloat = 14
+
+    // Expanded state
+    static let expandedWidth: CGFloat = 380
+    static let expandedHeight: CGFloat = 400
+    static let expandedCornerRadius: CGFloat = 24
+    static let expandedInvertedRadius: CGFloat = 24
+
+    // Orb
+    static let orbSize: CGFloat = 20
 }
 
-// MARK: - Island Menu View (Extended menu)
+// MARK: - Unified Dynamic Island View (Idle + Expanded)
 
-struct IslandMenuView: View {
+struct UnifiedIslandView: View {
     @ObservedObject var controller: DynamicIslandController
-    
     @State private var animationProgress: CGFloat = 0.0
     @State private var contentOpacity: CGFloat = 0.0
-    
-    // Dimensions
-    private let expandedWidth: CGFloat = 380
-    private let expandedHeight: CGFloat = 400
-    private let collapsedWidth: CGFloat = 180
-    private let collapsedHeight: CGFloat = 32
-    private let cornerRadius: CGFloat = 28
-    
+
     private var currentWidth: CGFloat {
-        collapsedWidth + (expandedWidth - collapsedWidth) * animationProgress
+        IslandDimensions.idleWidth + (IslandDimensions.expandedWidth - IslandDimensions.idleWidth) * animationProgress
     }
-    
+
     private var currentHeight: CGFloat {
-        collapsedHeight + (expandedHeight - collapsedHeight) * animationProgress
+        IslandDimensions.idleHeight + (IslandDimensions.expandedHeight - IslandDimensions.idleHeight) * animationProgress
     }
-    
+
     private var currentCornerRadius: CGFloat {
-        16 + (cornerRadius - 16) * animationProgress
+        IslandDimensions.idleCornerRadius + (IslandDimensions.expandedCornerRadius - IslandDimensions.idleCornerRadius) * animationProgress
     }
-    
-    private var currentTopInvertedRadius: CGFloat {
-        cornerRadius * animationProgress
+
+    private var currentInvertedRadius: CGFloat {
+        IslandDimensions.idleInvertedRadius + (IslandDimensions.expandedInvertedRadius - IslandDimensions.idleInvertedRadius) * animationProgress
     }
-    
+
+    private var orbOpacity: CGFloat {
+        1.0 - animationProgress
+    }
+
     var body: some View {
         ZStack(alignment: .top) {
-            // Background with inverted top corners
+            // Black background with inverted top corners
             DynamicIslandShape(
                 bottomCornerRadius: currentCornerRadius,
-                topInvertedRadius: currentTopInvertedRadius
+                topInvertedRadius: currentInvertedRadius
             )
-            .fill(.black)
-            .shadow(color: .black.opacity(0.4 * animationProgress), radius: 16, x: 0, y: 8)
-            .frame(width: currentWidth + (currentTopInvertedRadius * 2), height: currentHeight)
-            
-            // Content
-            menuContent
-                .frame(width: expandedWidth, height: expandedHeight)
-                .opacity(contentOpacity)
-        }
-        .frame(width: expandedWidth + (cornerRadius * 2), height: expandedHeight + 20, alignment: .top)
-        .onAppear {
-            withAnimation(.timingCurve(0.76, 0, 0.24, 1, duration: 0.4)) {
-                animationProgress = 1.0
+            .fill(Color.black)
+            .frame(width: currentWidth + (currentInvertedRadius * 2), height: currentHeight)
+
+            // Idle state: Orb on the right
+            if animationProgress < 1.0 {
+                HStack {
+                    Spacer()
+                    SiriOrbCompact(size: IslandDimensions.orbSize, isActive: controller.hasActivity)
+                        .frame(width: IslandDimensions.orbSize * 2, height: IslandDimensions.orbSize * 2)
+                }
+                .padding(.trailing, currentInvertedRadius + 6)
+                .frame(width: currentWidth + (currentInvertedRadius * 2), height: IslandDimensions.idleHeight)
+                .opacity(orbOpacity)
             }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-                withAnimation(.easeOut(duration: 0.2)) {
-                    contentOpacity = 1.0
+
+            // Expanded state: Menu content
+            if animationProgress > 0 {
+                menuContent
+                    .frame(width: IslandDimensions.expandedWidth, height: IslandDimensions.expandedHeight)
+                    .opacity(contentOpacity)
+            }
+        }
+        .frame(
+            width: IslandDimensions.expandedWidth + (IslandDimensions.expandedInvertedRadius * 2),
+            height: IslandDimensions.expandedHeight,
+            alignment: .top
+        )
+        .contentShape(Rectangle())
+        .onTapGesture {
+            if !controller.isExpanded {
+                controller.expand()
+            }
+        }
+        .onChange(of: controller.isExpanded) { _, expanded in
+            if expanded {
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                    animationProgress = 1.0
+                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                    withAnimation(.easeOut(duration: 0.15)) {
+                        contentOpacity = 1.0
+                    }
                 }
             }
         }
         .onChange(of: controller.isVisible) { _, visible in
             if !visible {
-                withAnimation(.easeIn(duration: 0.15)) {
+                withAnimation(.easeIn(duration: 0.1)) {
                     contentOpacity = 0.0
                 }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                    withAnimation(.timingCurve(0.76, 0, 0.24, 1, duration: 0.3)) {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                         animationProgress = 0.0
                     }
                 }
             }
         }
     }
-    
+
     // MARK: - Menu Content
-    
+
     private var menuContent: some View {
         VStack(spacing: 0) {
             // Header
@@ -339,13 +293,13 @@ struct IslandMenuView: View {
                 Image(systemName: "wand.and.stars")
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(.purple)
-                
+
                 Text("AxPlayground")
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(.white)
-                
+
                 Spacer()
-                
+
                 Button {
                     controller.collapse()
                 } label: {
@@ -360,10 +314,10 @@ struct IslandMenuView: View {
             .padding(.horizontal, 16)
             .padding(.top, 14)
             .padding(.bottom, 10)
-            
+
             Divider()
                 .background(Color.white.opacity(0.1))
-            
+
             // Menu items
             VStack(spacing: 4) {
                 MenuItemRow(icon: "bolt.fill", title: "Monitoring", subtitle: "Active", color: .green)
@@ -373,18 +327,18 @@ struct IslandMenuView: View {
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
-            
+
             Divider()
                 .background(Color.white.opacity(0.1))
-            
+
             // Footer
             HStack {
                 Text("AI Assistant Ready")
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(.white.opacity(0.5))
-                
+
                 Spacer()
-                
+
                 Circle()
                     .fill(.green)
                     .frame(width: 6, height: 6)
