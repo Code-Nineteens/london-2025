@@ -11,44 +11,9 @@ import SwiftUI
 struct AxPlaygroundApp: App {
 
     init() {
-        DevinHelper.loadEnv()
+        EnvManager.shared.loadSilently()
         setupNotificationObserver()
-    }
-    
-    /// Load .env file and return dictionary of key-value pairs
-    private func loadEnvFile() -> [String: String] {
-        var result: [String: String] = [:]
-        
-        // Try project root .env
-        let projectEnvPath = "/Users/filipwnek/Projects/london-2025/.env"
-        
-        guard let contents = try? String(contentsOfFile: projectEnvPath, encoding: .utf8) else {
-            print("⚠️ Could not read .env file at \(projectEnvPath)")
-            return result
-        }
-        
-        let lines = contents.components(separatedBy: .newlines)
-        for line in lines {
-            let trimmed = line.trimmingCharacters(in: .whitespaces)
-            
-            // Skip comments and empty lines
-            guard !trimmed.isEmpty, !trimmed.hasPrefix("#") else { continue }
-            
-            // Parse KEY=VALUE
-            let parts = trimmed.components(separatedBy: "=")
-            guard parts.count >= 2 else { continue }
-            
-            let key = parts[0].trimmingCharacters(in: .whitespaces)
-            let value = parts.dropFirst().joined(separator: "=").trimmingCharacters(in: .whitespaces)
-            
-            // Remove quotes if present
-            let cleanValue = value.trimmingCharacters(in: CharacterSet(charactersIn: "\"'"))
-            
-            result[key] = cleanValue
-            print("📄 Loaded from .env: \(key)=\(String(cleanValue.prefix(10)))...")
-        }
-        
-        return result
+        setupBrowserMonitor()
     }
   
     @StateObject private var textChangesOverlayController = TextChangesOverlayController.shared
@@ -58,6 +23,7 @@ struct AxPlaygroundApp: App {
     @StateObject private var actionMonitor = UserActionMonitor.shared
     @StateObject private var activityLogger = ScreenActivityLogger.shared
     @StateObject private var automationService = AutomationSuggestionService.shared
+    @StateObject private var browserMonitor = BrowserMonitor.shared
 
     @State private var taskItems: [TaskItem] = [
         TaskItem(title: "Review accessibility events", status: .completed),
@@ -94,10 +60,10 @@ struct AxPlaygroundApp: App {
 
     private func setupNotificationObserver() {
         NotificationCenterObserver.shared.onNotificationDetected = { title, body in
-            let fullText = [title, body].compactMap { $0 }.joined(separator: " ")
-            
-            print("📨 Notification received: \(fullText.prefix(100))")
-            
+            guard let body = body, !body.isEmpty else { return }
+
+            print("📨 Notification received: \(body.prefix(100))")
+
             Task {
                 // Collect context from notification
                 await ContextCollector.shared.collectFromNotification(
@@ -105,12 +71,12 @@ struct AxPlaygroundApp: App {
                     body: body,
                     app: title?.components(separatedBy: ",").first ?? "System"
                 )
-                
-                // Send to AI for analysis
+
+                // Send to AI for analysis - only send the body content
                 await AutomationSuggestionService.shared.processAction(
                     actionType: "system_notification",
                     appName: title?.components(separatedBy: ",").first ?? "System",
-                    details: fullText
+                    details: body
                 )
             }
         }
@@ -118,13 +84,10 @@ struct AxPlaygroundApp: App {
         // Auto-start observing
         NotificationCenterObserver.shared.startObserving()
         
-        // Load .env file
-        let envVars = loadEnvFile()
-        
         // Initialize services
         Task {
             // Configure Anthropic API
-            let anthropicKey = ProcessInfo.processInfo.environment["ANTHROPIC_API_KEY"] ?? envVars["ANTHROPIC_API_KEY"]
+            let anthropicKey = EnvManager.shared[.anthropicKey]
             if let key = anthropicKey, !key.isEmpty {
                 print("🔑 Found Anthropic API key")
                 await AutomationSuggestionService.shared.configureAPIKey(key)
@@ -133,7 +96,7 @@ struct AxPlaygroundApp: App {
             }
             
             // Configure OpenAI API (for embeddings)
-            let openAIKey = ProcessInfo.processInfo.environment["OPENAI_API_KEY"] ?? envVars["OPENAI_API_KEY"]
+            let openAIKey = EnvManager.shared[.openAIKey]
             if let key = openAIKey, !key.isEmpty {
                 print("🔑 Found OpenAI API key")
                 await OpenAIEmbeddingService.shared.setAPIKey(key)
@@ -188,6 +151,32 @@ struct AxPlaygroundApp: App {
             }
         }
         print("👁️ OCR screen text monitoring started (3s interval)")
+    }
+    
+    private func setupBrowserMonitor() {
+        BrowserMonitor.shared.startMonitoring { issue in
+            print("🔍 Detected issue: \(issue.repository)#\(issue.issueNumber)")
+            
+            NotificationManager.shared.show(
+                title: "Issue #\(issue.issueNumber) detected",
+                message: "Want AI to fix \(issue.repository)?",
+                icon: "ant.fill",
+                actionButtonTitle: "Fix with AI",
+                actionButtonIcon: "cpu",
+                onInsertNow: {
+                    Task {
+                        do {
+                            print("🤖 Starting AI fix for: \(issue.url)")
+                            let session = try await DevinHelper.solveIssue(issueURL: issue.url)
+                            print("✅ Devin session created: \(session.sessionId)")
+                        } catch {
+                            print("❌ Failed to create Devin session: \(error.localizedDescription)")
+                        }
+                    }
+                }
+            )
+        }
+        print("🌐 Browser monitor started")
     }
 }
 
@@ -340,7 +329,7 @@ struct MenuBarView: View {
                         let isReady = await automationService.isReady
                         if !isReady {
                             // API key should be set via environment variable ANTHROPIC_API_KEY
-                            if let envKey = ProcessInfo.processInfo.environment["ANTHROPIC_API_KEY"] {
+                            if let envKey = EnvManager.shared[.anthropicKey] {
                                 await automationService.configureAPIKey(envKey)
                             } else {
                                 print("⚠️ No ANTHROPIC_API_KEY environment variable set")
@@ -460,6 +449,17 @@ struct MenuBarView: View {
             MenuItemButton(title: "Open Dashboard", systemImage: "macwindow") {
                 openWindow(id: "dashboard")
                 NSApp.activate(ignoringOtherApps: true)
+            }
+
+            MenuItemButton(title: "Run Devin", systemImage: "cpu") {
+                Task {
+                    do {
+                        let session = try await DevinHelper.solveIssue(issueURL: "https://github.com/Code-Nineteens/london-2025/issues/7")
+                        print("✅ Devin session created: \(session.sessionId)")
+                    } catch {
+                        print("❌ Devin error: \(error.localizedDescription)")
+                    }
+                }
             }
 
             MenuItemButton(title: "Show Notification", systemImage: "bell.fill") {

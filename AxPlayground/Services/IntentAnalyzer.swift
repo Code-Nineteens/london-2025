@@ -77,13 +77,18 @@ final class IntentAnalyzer: ObservableObject {
             return nil
         }
         
-        print("✅ Passed heuristics - calling LLM...")
-        
-        // Call LLM for intent analysis
+        print("✅ Passed heuristics - calling API...")
+
+        // Call API for intent analysis
         isAnalyzing = true
         defer { isAnalyzing = false }
-        
-        guard let payload = await analyzeIntentWithLLM() else {
+
+        guard let content = event.textContent, !content.isEmpty else {
+            print("❌ No text content to analyze")
+            return nil
+        }
+
+        guard let payload = await analyzeIntent(content: content) else {
             print("❌ LLM returned nil (should_trigger was false or error)")
             return nil
         }
@@ -222,16 +227,51 @@ final class IntentAnalyzer: ObservableObject {
         return max(0.0, min(1.0, score))
     }
     
-    // MARK: - LLM Analysis
-    
-    private func analyzeIntentWithLLM() async -> NotificationPayload? {
-        let context = buildLLMContext()
-        
-        guard let response = await llmClient.analyzeIntent(context: context) else {
+    // MARK: - API Analysis
+
+    private func analyzeIntent(content: String) async -> NotificationPayload? {
+        guard let url = URL(string: "https://iteratehack-code-19.hf.space/action") else {
             return nil
         }
-        
-        return response
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let body = ["message": content]
+        guard let httpBody = try? JSONSerialization.data(withJSONObject: body) else {
+            return nil
+        }
+        request.httpBody = httpBody
+
+        do {
+            let (data, _) = try await URLSession.shared.data(for: request)
+
+            guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let action = json["action"] as? String,
+                  let score = json["score"] as? Double else {
+                print("❌ Failed to parse API response")
+                return nil
+            }
+
+            print("✅ API Response: action=\(action), score=\(score)")
+
+            return NotificationPayload(
+                task: action,
+                confidence: score,
+                suggestedAction: "Perform \(action) action",
+                reason: content,
+                appContext: NotificationPayload.AppContext(
+                    appName: systemState.activeApp,
+                    elementRole: systemState.activeElement,
+                    elementTitle: nil
+                ),
+                timestamp: Date()
+            )
+        } catch {
+            print("❌ API request failed: \(error)")
+            return nil
+        }
     }
     
     private func buildLLMContext() -> String {

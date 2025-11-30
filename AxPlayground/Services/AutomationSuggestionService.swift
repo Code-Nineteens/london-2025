@@ -61,35 +61,35 @@ final class AutomationSuggestionService: ObservableObject {
     
     /// Process an action and potentially show suggestion
     func processAction(actionType: String, appName: String, details: String) async {
-        print("")
-        print("🔷🔷🔷 AutomationSuggestionService.processAction 🔷🔷🔷")
-        print("   isEnabled: \(isEnabled)")
-        print("   actionType: \(actionType)")
-        print("   appName: \(appName)")
-        print("   details: \(details.prefix(100))")
-        
-        guard isEnabled else {
-            print("❌ Service is DISABLED - returning")
-            return
-        }
-        
+        guard isEnabled else { return }
+
         eventsProcessed += 1
         isProcessing = true
         defer { isProcessing = false }
-        
-        print("📤 Sending to IntentAnalyzer...")
-        
+
         guard let payload = await intentAnalyzer.processAction(
             actionType: actionType,
             appName: appName,
             details: details
         ) else {
-            print("❌ IntentAnalyzer returned nil")
             return
         }
-        
-        print("✅ Got payload from IntentAnalyzer!")
-        
+
+        // Skip NONE actions - don't show notification
+        if payload.task.uppercased() == "NONE" || payload.suggestedAction.uppercased() == "NONE" {
+            print("🔷 Skipping NONE action - no notification")
+            return
+        }
+
+        print("")
+        print("🔷🔷🔷 AutomationSuggestionService.processAction 🔷🔷🔷")
+        print("   📋 Notification Content:")
+        print("      task: \(payload.task)")
+        print("      confidence: \(String(format: "%.0f", payload.confidence * 100))%")
+        print("      suggestedAction: \(payload.suggestedAction)")
+        print("      reason: \(payload.reason)")
+        print("      appContext: \(payload.appContext.appName)")
+
         // Show notification
         showSuggestionNotification(payload)
         
@@ -180,9 +180,61 @@ final class AutomationSuggestionService: ObservableObject {
            combined.contains("create") || combined.contains("utwórz") {
             return (icon: "doc.fill", handler: nil)
         }
-        
+
+        // Check for GitHub-related keywords
+        if combined.contains("github") || combined.contains("issue") ||
+           combined.contains("pull request") || combined.contains("pr") ||
+           combined.contains("devin") {
+            return (icon: "chevron.left.forwardslash.chevron.right", handler: {
+                Task {
+                    await self.handleGitHubAction(for: payload)
+                }
+            })
+        }
+
         // Default
         return (icon: "wand.and.stars", handler: nil)
+    }
+
+    // MARK: - GitHub Action
+
+    /// Handle GitHub-related actions using Devin
+    private func handleGitHubAction(for payload: NotificationPayload) async {
+        print("🐙 Handling GitHub action: \(payload.task)")
+        
+
+        // Extract URL from payload (search in task, suggestedAction, reason)
+        let allText = "\(payload.task) \(payload.suggestedAction) \(payload.reason)"
+        let issueURL = extractURL(from: allText)
+
+        if let url = issueURL {
+            print("🐙 Found URL: \(url)")
+            do {
+                let session = try await DevinHelper.solveIssue(issueURL: url)
+                print("🐙 ✅ Devin session created: \(session.sessionId)")
+            } catch {
+                print("🐙 ❌ Devin error: \(error.localizedDescription)")
+                // Fallback: open the URL directly
+            }
+        } else {
+            print("🐙 No URL found, opening GitHub")
+        }
+    }
+
+    /// Extract https:// URL from text
+    private func extractURL(from text: String) -> String? {
+        let pattern = "https://[^\\s\"'<>]+"
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else {
+            return nil
+        }
+
+        let range = NSRange(text.startIndex..., in: text)
+        if let match = regex.firstMatch(in: text, options: [], range: range) {
+            if let swiftRange = Range(match.range, in: text) {
+                return String(text[swiftRange])
+            }
+        }
+        return nil
     }
     
     // MARK: - Email Draft Composition

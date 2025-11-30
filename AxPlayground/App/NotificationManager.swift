@@ -12,6 +12,8 @@ final class NotificationManager: ObservableObject {
     @Published var title = "Notification"
     @Published var message: String? = nil
     @Published var icon: String? = "bell.fill"
+    @Published var actionButtonTitle: String = "Insert Now"
+    @Published var actionButtonIcon: String = "sparkles"
 
     private var overlayWindow: NSWindow?
     private var dismissTimer: Timer?
@@ -25,19 +27,26 @@ final class NotificationManager: ObservableObject {
         title: String,
         message: String? = nil,
         icon: String? = "bell.fill",
-        autoDismissAfter: TimeInterval = 8.0,
+        actionButtonTitle: String = "Insert Now",
+        actionButtonIcon: String = "sparkles",
+        autoDismissAfter: TimeInterval = 6.0,
         onAddToQueue: (() -> Void)? = nil,
         onInsertNow: (() -> Void)? = nil,
         onReject: (() -> Void)? = nil
     ) {
+        print("🏝️ NotificationManager.show() called: \(title)")
+        
         self.title = title
         self.message = message
         self.icon = icon
+        self.actionButtonTitle = actionButtonTitle
+        self.actionButtonIcon = actionButtonIcon
         self.onInsertNow = onInsertNow
         self.isShowing = true
         self.isVisible = true
 
         showDynamicIsland()
+        print("🏝️ Dynamic Island window created")
 
         // Auto-dismiss after specified time
         dismissTimer?.invalidate()
@@ -66,11 +75,17 @@ final class NotificationManager: ObservableObject {
     // MARK: - Private Methods
 
     private func showDynamicIsland() {
+        print("🏝️ showDynamicIsland() - START")
+        
         // Close previous window if exists
         overlayWindow?.orderOut(nil)
         overlayWindow = nil
 
-        guard let screen = NSScreen.main else { return }
+        guard let screen = NSScreen.main else {
+            print("🏝️ ❌ No main screen!")
+            return
+        }
+        print("🏝️ Screen found: \(screen.frame)")
 
         // Dynamic Island dimensions (extra width for inverted corners)
         let maxWidth: CGFloat = 380 + (28 * 2) // base width + inverted radius on each side
@@ -108,6 +123,8 @@ final class NotificationManager: ObservableObject {
             title: title,
             message: message,
             icon: icon,
+            actionButtonTitle: actionButtonTitle,
+            actionButtonIcon: actionButtonIcon,
             manager: self,
             onInsertNow: onInsertNow
         )
@@ -119,6 +136,7 @@ final class NotificationManager: ObservableObject {
         // Show with fade in
         window.alphaValue = 0
         window.orderFrontRegardless()
+        print("🏝️ Window ordered front, frame: \(window.frame)")
 
         NSAnimationContext.runAnimationGroup { context in
             context.duration = 0.2
@@ -127,6 +145,7 @@ final class NotificationManager: ObservableObject {
         }
 
         overlayWindow = window
+        print("🏝️ showDynamicIsland() - DONE ✅")
     }
 
     private func hideDynamicIsland() {
@@ -142,6 +161,8 @@ private struct DynamicIslandContainerView: View {
     let title: String
     let message: String?
     let icon: String?
+    let actionButtonTitle: String
+    let actionButtonIcon: String
     @ObservedObject var manager: NotificationManager
     let onInsertNow: (() -> Void)?
 
@@ -154,6 +175,8 @@ private struct DynamicIslandContainerView: View {
                 manager.hide()
             },
             onInsertNow: onInsertNow,
+            actionButtonTitle: actionButtonTitle,
+            actionButtonIcon: actionButtonIcon,
             isVisible: $manager.isVisible
         )
     }
