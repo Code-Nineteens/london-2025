@@ -160,7 +160,20 @@ struct AxPlaygroundApp: App {
             NotificationManager.shared.show(
                 title: "Issue #\(issue.issueNumber) detected",
                 message: "Want AI to fix \(issue.repository)?",
-                icon: "ant.fill"
+                icon: "ant.fill",
+                actionButtonTitle: "Fix with AI",
+                actionButtonIcon: "cpu",
+                onInsertNow: {
+                    Task {
+                        do {
+                            print("🤖 Starting AI fix for: \(issue.url)")
+                            let session = try await DevinHelper.solveIssue(issueURL: issue.url)
+                            print("✅ Devin session created: \(session.sessionId)")
+                        } catch {
+                            print("❌ Failed to create Devin session: \(error.localizedDescription)")
+                        }
+                    }
+                }
             )
         }
         print("🌐 Browser monitor started")
