@@ -10,18 +10,45 @@ import Cocoa
 /// Helper for opening mail client using AppleScript.
 struct MailHelper {
     
-    // MARK: - Public Methods
-    
-    /// Opens Mail.app.
+    /// Opens Mail.app using osascript (triggers permission dialog).
     static func openMailApp() {
-        runAppleScript("""
+        runOsascript("""
             tell application "Mail"
                 activate
             end tell
         """)
     }
     
-    /// Composes a new email in Mail.app.
+    /// Run AppleScript via osascript command - this properly triggers permission dialogs
+    private static func runOsascript(_ script: String) {
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
+        task.arguments = ["-e", script]
+        
+        let pipe = Pipe()
+        task.standardOutput = pipe
+        task.standardError = pipe
+        
+        do {
+            try task.run()
+            task.waitUntilExit()
+            
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            if let output = String(data: data, encoding: .utf8), !output.isEmpty {
+                print("📧 osascript output: \(output)")
+            }
+            
+            if task.terminationStatus != 0 {
+                print("❌ osascript failed with status: \(task.terminationStatus)")
+            } else {
+                print("✅ osascript succeeded")
+            }
+        } catch {
+            print("❌ Failed to run osascript: \(error)")
+        }
+    }
+    
+    /// Composes a new email in Mail.app using osascript.
     static func compose(
         to recipient: String? = nil,
         subject: String? = nil,
@@ -59,24 +86,10 @@ struct MailHelper {
             end tell
         """
         
-        runAppleScript(script)
+        runOsascript(script)
     }
     
     // MARK: - Private Methods
-    
-    private static func runAppleScript(_ source: String) {
-        guard let script = NSAppleScript(source: source) else {
-            print("❌ Failed to create AppleScript")
-            return
-        }
-        
-        var error: NSDictionary?
-        script.executeAndReturnError(&error)
-        
-        if let error = error {
-            print("❌ AppleScript error: \(error)")
-        }
-    }
     
     private static func escapeForAppleScript(_ text: String) -> String {
         text.replacingOccurrences(of: "\\", with: "\\\\")

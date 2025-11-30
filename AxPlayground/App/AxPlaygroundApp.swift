@@ -58,12 +58,18 @@ struct AxPlaygroundApp: App {
 
     private func setupNotificationObserver() {
         NotificationCenterObserver.shared.onNotificationDetected = { title, body in
-            // Analyze notification with AI to check if it's actionable
             let fullText = [title, body].compactMap { $0 }.joined(separator: " ")
             
-            print("📨 Sending to AI: \(fullText.prefix(100))")
+            print("📨 Notification received: \(fullText.prefix(100))")
             
             Task {
+                // Collect context from notification
+                await ContextCollector.shared.collectFromNotification(
+                    title: title,
+                    body: body,
+                    app: title?.components(separatedBy: ",").first ?? "System"
+                )
+                
                 // Send to AI for analysis
                 await AutomationSuggestionService.shared.processAction(
                     actionType: "system_notification",
@@ -73,18 +79,30 @@ struct AxPlaygroundApp: App {
             }
         }
 
-        // Auto-start observing - notifications will be analyzed by AI
+        // Auto-start observing
         NotificationCenterObserver.shared.startObserving()
         
-        // Auto-enable AI suggestions (API key from environment or UserDefaults)
+        // Initialize services
         Task {
-            // API key should be set via environment variable ANTHROPIC_API_KEY
-            // or configured manually in the app
+            // Configure Anthropic API
             if let envKey = ProcessInfo.processInfo.environment["ANTHROPIC_API_KEY"] {
+                print("🔑 Found Anthropic API key")
                 await AutomationSuggestionService.shared.configureAPIKey(envKey)
             }
+            
+            // Configure OpenAI API (for embeddings)
+            if let openAIKey = ProcessInfo.processInfo.environment["OPENAI_API_KEY"] {
+                print("🔑 Found OpenAI API key")
+                await OpenAIEmbeddingService.shared.setAPIKey(openAIKey)
+            }
+            
+            // Start context collection
+            await ContextCollector.shared.startCollecting()
+            print("🔍 Context collection started")
+            
+            // Enable AI suggestions
             AutomationSuggestionService.shared.setEnabled(true)
-            print("🤖 AI Suggestions auto-enabled")
+            print("🤖 AI Suggestions enabled")
         }
     }
 }
@@ -191,7 +209,7 @@ struct MenuBarView: View {
             
             MenuItemButton(
                 title: activityLogger.isLogging ? "Stop Full Activity Log" : "Start Full Activity Log",
-                systemImage: activityLogger.isLogging ? "doc.text.fill.badge.minus" : "doc.text.fill.badge.plus"
+                systemImage: activityLogger.isLogging ? "stop.circle.fill" : "record.circle"
             ) {
                 if activityLogger.isLogging {
                     activityLogger.stopLogging()
@@ -339,6 +357,10 @@ struct MenuBarView: View {
 
     private var actionButtons: some View {
         VStack(alignment: .leading, spacing: 0) {
+            MenuItemButton(title: "Test Mail (AppleScript)", systemImage: "envelope.fill") {
+                MailHelper.openMailApp()
+            }
+            
             MenuItemButton(title: "Open Dashboard", systemImage: "macwindow") {
                 openWindow(id: "dashboard")
                 NSApp.activate(ignoringOtherApps: true)

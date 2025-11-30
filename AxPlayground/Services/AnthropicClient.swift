@@ -42,13 +42,18 @@ actor AnthropicClient {
     
     /// Check if API key is configured
     var isConfigured: Bool {
-        !apiKey.isEmpty
+        let hasKey = !apiKey.isEmpty
+        print("🔑 API Key configured: \(hasKey) (length: \(apiKey.count))")
+        return hasKey
     }
     
     /// Analyze user intent from accessibility context
     func analyzeIntent(context: String) async -> NotificationPayload? {
+        print("🌐 AnthropicClient.analyzeIntent called")
+        print("   API key length: \(apiKey.count)")
+        
         guard isConfigured else {
-            print("⚠️ Anthropic API key not configured")
+            print("⚠️ Anthropic API key not configured - check ANTHROPIC_API_KEY env var or UserDefaults")
             return nil
         }
         
@@ -113,7 +118,8 @@ actor AnthropicClient {
     
     // MARK: - API Call
     
-    private func callAPI(systemPrompt: String, userMessage: String) async throws -> String {
+    /// Call the Anthropic API with custom prompts (used by EmailDraftComposer)
+    func callAPI(systemPrompt: String, userMessage: String) async throws -> String {
         guard let url = URL(string: apiEndpoint) else {
             throw APIError.invalidURL
         }
@@ -169,6 +175,12 @@ actor AnthropicClient {
         guard let jsonStart = response.firstIndex(of: "{"),
               let jsonEnd = response.lastIndex(of: "}") else {
             print("⚠️ ERROR: No JSON found in response")
+            return nil
+        }
+        
+        // Safely extract JSON substring
+        guard jsonStart <= jsonEnd else {
+            print("⚠️ ERROR: Invalid JSON indices")
             return nil
         }
         

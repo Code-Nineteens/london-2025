@@ -126,6 +126,16 @@ final class IntentAnalyzer: ObservableObject {
         return await processEvent(event)
     }
     
+    /// Get recent events from buffer (for email composition)
+    func getRecentEvents() -> [AXEvent] {
+        return eventBuffer.suffix(50).map { $0.event }
+    }
+    
+    /// Get current system state (for email composition)
+    func getCurrentSystemState() -> SystemState {
+        return systemState
+    }
+    
     // MARK: - Event Buffer
     
     private func addToBuffer(_ event: AXEvent) {
