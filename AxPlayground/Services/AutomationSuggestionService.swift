@@ -363,13 +363,14 @@ final class AutomationSuggestionService: ObservableObject {
     }
     
     /// Simple fallback email draft without LLM
+    /// Opens Mail with empty fields - better than garbage data
     private func openSimpleEmailDraft(for payload: NotificationPayload) {
-        let subject = extractEmailSubject(from: payload)
-        let body = extractEmailBody(from: payload)
-        
+        // When LLM fails or no context available, just open Mail with empty fields
+        // User can fill in the details themselves
         MailHelper.compose(
-            subject: subject,
-            body: body
+            to: nil,
+            subject: nil,
+            body: nil
         )
     }
     

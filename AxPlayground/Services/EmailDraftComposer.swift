@@ -75,9 +75,30 @@ final class EmailDraftComposer: ObservableObject {
             return nil
         }
         
-        // 4. Force should_compose_email to true (we always want to open Mail)
+        // 4. Validate and sanitize the draft
         var finalDraft = draft
-        if !draft.shouldComposeEmail {
+
+        // Check if subject is invalid (e.g., just "MAIL")
+        let hasInvalidSubject = isInvalidEmailSubject(draft.emailSubject)
+        // Check if body is invalid (e.g., "Perform MAIL action")
+        let hasInvalidBody = isInvalidEmailBody(draft.emailBody, intent: intent)
+
+        if hasInvalidSubject || hasInvalidBody {
+            print("📧 ⚠️ LLM returned invalid content, clearing fields")
+            print("📧   Invalid subject: \(hasInvalidSubject) ('\(draft.emailSubject)')")
+            print("📧   Invalid body: \(hasInvalidBody)")
+            finalDraft = EmailDraftPayload(
+                shouldComposeEmail: true,
+                inferredTask: draft.inferredTask,
+                confidence: draft.confidence,
+                valueAddedContextUsed: draft.valueAddedContextUsed,
+                emailSubject: hasInvalidSubject ? "" : draft.emailSubject,
+                emailBody: hasInvalidBody ? "" : draft.emailBody,
+                recipient: draft.recipient,
+                missingInfo: nil,
+                timestamp: Date()
+            )
+        } else if !draft.shouldComposeEmail {
             print("📧 ⚠️ LLM said no compose, but we force open Mail anyway")
             finalDraft = EmailDraftPayload(
                 shouldComposeEmail: true,
@@ -114,12 +135,12 @@ final class EmailDraftComposer: ObservableObject {
             .replacingOccurrences(of: "Z poważaniem", with: "")
             .replacingOccurrences(of: "Do usłyszenia", with: "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        
+
         print("📧 VALIDATION - Core content: '\(coreContent)'")
-        
+
         let coreLower = coreContent.lowercased()
         let intentLower = intent.lowercased()
-        
+
         // Check if core content is too similar to intent
         if coreLower == intentLower {
             print("📧 INVALID: exact match with intent")
@@ -129,7 +150,7 @@ final class EmailDraftComposer: ObservableObject {
             print("📧 INVALID: contains intent")
             return true
         }
-        
+
         // Check for generic patterns that indicate LLM didn't write real content
         let invalidPatterns = [
             "send email", "send mail", "wyślij mail", "wyślij email",
@@ -139,22 +160,49 @@ final class EmailDraftComposer: ObservableObject {
             "[", "]", // placeholders
             "dear client", "dear customer",
             "@", // raw email addresses in body = not real content
+            "perform mail action", "mail action", "perform email action",
+            "email action", "action mail", "action email",
         ]
-        
+
         for pattern in invalidPatterns {
             if coreLower.contains(pattern) {
                 print("📧 INVALID: contains pattern '\(pattern)'")
                 return true
             }
         }
-        
+
         // Check if content is too short (just greeting + closing without real content)
         if coreContent.count < 20 {
             print("📧 INVALID: too short (\(coreContent.count) chars)")
             return true
         }
-        
+
         print("📧 VALID: passed all checks")
+        return false
+    }
+
+    /// Check if email subject is invalid (just "MAIL" or action type)
+    private func isInvalidEmailSubject(_ subject: String) -> Bool {
+        let subjectLower = subject.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // Invalid subject patterns - just the action type or generic
+        let invalidSubjects = [
+            "mail", "email", "send", "send mail", "send email",
+            "compose", "draft", "message", "wiadomość",
+            "perform mail action", "mail action", "email action"
+        ]
+
+        if invalidSubjects.contains(subjectLower) {
+            print("📧 INVALID SUBJECT: '\(subject)' is too generic")
+            return true
+        }
+
+        // Subject is too short
+        if subjectLower.count < 3 {
+            print("📧 INVALID SUBJECT: too short")
+            return true
+        }
+
         return false
     }
     
