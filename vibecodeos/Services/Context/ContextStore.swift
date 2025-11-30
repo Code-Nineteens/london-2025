@@ -48,7 +48,7 @@ actor ContextStore {
     
     private func getDBPath() -> String {
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-        let appDir = appSupport.appendingPathComponent("AxPlayground", isDirectory: true)
+        let appDir = appSupport.appendingPathComponent("vibecodeos", isDirectory: true)
         
         // Create directory if needed
         try? FileManager.default.createDirectory(at: appDir, withIntermediateDirectories: true)

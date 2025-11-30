@@ -16,9 +16,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "EB2F3F2F2EDB3A58006169F7"
-               BuildableName = "AxPlayground.app"
-               BlueprintName = "AxPlayground"
-               ReferencedContainer = "container:AxPlayground.xcodeproj">
+               BuildableName = "vibecodeos.app"
+               BlueprintName = "vibecodeos"
+               ReferencedContainer = "container:vibecodeos.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>

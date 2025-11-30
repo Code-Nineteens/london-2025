@@ -1,6 +1,6 @@
 //
-//  AxPlaygroundApp.swift
-//  AxPlayground
+//  vibecodeosApp.swift
+//  vibecodeos
 //
 //  Created by Kamil Moskała on 29/11/2025.
 //
@@ -8,7 +8,7 @@
 import SwiftUI
 
 @main
-struct AxPlaygroundApp: App {
+struct vibecodeosApp: App {
 
     init() {
         EnvManager.shared.loadSilently()
@@ -78,7 +78,7 @@ struct AxPlaygroundApp: App {
         }
         .defaultLaunchBehavior(.suppressed)
 
-        MenuBarExtra("AxPlayground", systemImage: "bolt.fill") {
+        MenuBarExtra("vibecodeos", systemImage: "bolt.fill") {
             MenuBarView(
                 taskItems: $taskItems,
                 accessibilityMonitor: accessibilityMonitor,
