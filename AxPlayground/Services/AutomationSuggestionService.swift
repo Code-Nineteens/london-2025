@@ -61,35 +61,35 @@ final class AutomationSuggestionService: ObservableObject {
     
     /// Process an action and potentially show suggestion
     func processAction(actionType: String, appName: String, details: String) async {
-        print("")
-        print("🔷🔷🔷 AutomationSuggestionService.processAction 🔷🔷🔷")
-        print("   isEnabled: \(isEnabled)")
-        print("   actionType: \(actionType)")
-        print("   appName: \(appName)")
-        print("   details: \(details.prefix(100))")
-        
-        guard isEnabled else {
-            print("❌ Service is DISABLED - returning")
-            return
-        }
-        
+        guard isEnabled else { return }
+
         eventsProcessed += 1
         isProcessing = true
         defer { isProcessing = false }
-        
-        print("📤 Sending to IntentAnalyzer...")
-        
+
         guard let payload = await intentAnalyzer.processAction(
             actionType: actionType,
             appName: appName,
             details: details
         ) else {
-            print("❌ IntentAnalyzer returned nil")
             return
         }
-        
-        print("✅ Got payload from IntentAnalyzer!")
-        
+
+        // Skip NONE actions - don't show notification
+        if payload.task.uppercased() == "NONE" || payload.suggestedAction.uppercased() == "NONE" {
+            print("🔷 Skipping NONE action - no notification")
+            return
+        }
+
+        print("")
+        print("🔷🔷🔷 AutomationSuggestionService.processAction 🔷🔷🔷")
+        print("   📋 Notification Content:")
+        print("      task: \(payload.task)")
+        print("      confidence: \(String(format: "%.0f", payload.confidence * 100))%")
+        print("      suggestedAction: \(payload.suggestedAction)")
+        print("      reason: \(payload.reason)")
+        print("      appContext: \(payload.appContext.appName)")
+
         // Show notification
         showSuggestionNotification(payload)
         

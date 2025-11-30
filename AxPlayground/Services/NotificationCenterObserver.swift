@@ -155,14 +155,18 @@ final class NotificationCenterObserver: ObservableObject {
             text != "Close" &&
             text != "Options" &&
             text != "Reply" &&
+            text != "Clear Notifications…" &&
             !text.hasPrefix("Notification") &&
             text.count > 1
         }
 
-        // Usually: first text is app/sender name, second is message content
-        // For Messages: "Name", "Message content"
+        // Usually: first text is app name, second is sender, third+ is message content
+        // For Discord: ["Discord", "tuso", "message content"]
+        // We want: title = "Discord, tuso", body = "message content"
         let title = filteredTexts.first
-        let body = filteredTexts.count > 1 ? filteredTexts.dropFirst().joined(separator: "\n") : nil
+
+        // Find the longest text - that's likely the actual message body
+        let body = filteredTexts.dropFirst().max(by: { $0.count < $1.count })
 
         return (title, body)
     }

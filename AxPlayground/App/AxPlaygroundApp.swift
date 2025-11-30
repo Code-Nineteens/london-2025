@@ -94,10 +94,10 @@ struct AxPlaygroundApp: App {
 
     private func setupNotificationObserver() {
         NotificationCenterObserver.shared.onNotificationDetected = { title, body in
-            let fullText = [title, body].compactMap { $0 }.joined(separator: " ")
-            
-            print("📨 Notification received: \(fullText.prefix(100))")
-            
+            guard let body = body, !body.isEmpty else { return }
+
+            print("📨 Notification received: \(body.prefix(100))")
+
             Task {
                 // Collect context from notification
                 await ContextCollector.shared.collectFromNotification(
@@ -105,12 +105,12 @@ struct AxPlaygroundApp: App {
                     body: body,
                     app: title?.components(separatedBy: ",").first ?? "System"
                 )
-                
-                // Send to AI for analysis
+
+                // Send to AI for analysis - only send the body content
                 await AutomationSuggestionService.shared.processAction(
                     actionType: "system_notification",
                     appName: title?.components(separatedBy: ",").first ?? "System",
-                    details: fullText
+                    details: body
                 )
             }
         }
