@@ -135,20 +135,65 @@ final class AutomationSuggestionService: ObservableObject {
     
     private func showSuggestionNotification(_ payload: NotificationPayload) {
         DispatchQueue.main.async { [self] in
-            let confidenceEmoji = payload.confidence >= 0.8 ? "🎯" : "💡"
-            
             // Determine action based on task type
             let action = determineAction(for: payload)
             
+            // Simple, clean title: emoji + action type (e.g., "📧 MAIL")
+            let cleanTitle = getSimpleNotificationTitle(for: payload, action: action)
+            
             notificationManager.show(
-                title: "\(confidenceEmoji) \(payload.task)",
-                message: "\(payload.suggestedAction)\n\n\(payload.reason)",
+                title: cleanTitle,
+                message: nil,
                 icon: action.icon,
                 onInsertNow: action.handler
             )
             
-            print("🤖 Suggestion: \(payload.task) (confidence: \(String(format: "%.0f", payload.confidence * 100))%)")
+            print("🤖 Notification: \(cleanTitle)")
         }
+    }
+    
+    /// Get simple notification title based on action type
+    /// Examples: "📧 MAIL", "💬 MESSAGE", "📅 MEETING"
+    private func getSimpleNotificationTitle(for payload: NotificationPayload, action: (icon: String, handler: (() -> Void)?)) -> String {
+        let taskLower = payload.task.lowercased()
+        let suggestedLower = payload.suggestedAction.lowercased()
+        let combined = taskLower + " " + suggestedLower
+        
+        // Email/Mail
+        if combined.contains("mail") || combined.contains("email") || 
+           combined.contains("wyślij") || combined.contains("send") ||
+           combined.contains("maila") {
+            return "📧 MAIL"
+        }
+        
+        // Message
+        if combined.contains("message") || combined.contains("wiadomość") ||
+           combined.contains("slack") || combined.contains("discord") {
+            return "💬 MESSAGE"
+        }
+        
+        // Meeting/Calendar
+        if combined.contains("meeting") || combined.contains("spotkanie") ||
+           combined.contains("calendar") || combined.contains("kalendarz") ||
+           combined.contains("schedule") || combined.contains("zaplanuj") {
+            return "📅 MEETING"
+        }
+        
+        // Document
+        if combined.contains("document") || combined.contains("dokument") ||
+           combined.contains("create") || combined.contains("utwórz") {
+            return "📄 DOCUMENT"
+        }
+        
+        // GitHub/Issue
+        if combined.contains("github") || combined.contains("issue") ||
+           combined.contains("pull request") || combined.contains("pr") ||
+           combined.contains("devin") {
+            return "🐙 GITHUB"
+        }
+        
+        // Default
+        return "✨ ACTION"
     }
     
     /// Determine what action to take based on the payload
@@ -272,8 +317,8 @@ final class AutomationSuggestionService: ObservableObject {
                 print("📧 Cannot compose email: \(reason)")
                 
                 NotificationManager.shared.show(
-                    title: "❌ Nie mogę napisać maila",
-                    message: reason,
+                    title: "❌ Cannot compose email • \(reason)",
+                    message: nil,
                     icon: "envelope.badge.exclamationmark"
                 )
             }

@@ -148,8 +148,8 @@ struct ChironApp: App {
             print("🔍 Detected issue: \(issue.repository)#\(issue.issueNumber)")
             
             NotificationManager.shared.show(
-                title: "Issue #\(issue.issueNumber) detected",
-                message: "Want AI to fix \(issue.repository)?",
+                title: "Issue #\(issue.issueNumber) detected • Fix \(issue.repository) with AI?",
+                message: nil,
                 icon: "ant.fill",
                 actionButtonTitle: "Fix with AI",
                 actionButtonIcon: "cpu",
@@ -561,8 +561,8 @@ struct MenuBarViewNew: View {
         }
         
         NotificationManager.shared.show(
-            title: "📦 Context Store",
-            message: message,
+            title: "📦 Context Store • \(count) chunks",
+            message: nil,
             icon: "cylinder.fill"
         )
     }
@@ -585,15 +585,15 @@ struct MenuBarViewNew: View {
                 )
             } else {
                 NotificationManager.shared.show(
-                    title: "📧 Draft (not actionable)",
-                    message: draft.whyNotComposable ?? "Missing info",
+                    title: "📧 Cannot compose email • \(draft.whyNotComposable ?? "Missing info")",
+                    message: nil,
                     icon: "envelope.badge.exclamationmark"
                 )
             }
         } else {
             NotificationManager.shared.show(
-                title: "❌ Test Failed",
-                message: "Email composition failed",
+                title: "❌ Email composition failed",
+                message: nil,
                 icon: "xmark.circle"
             )
         }

@@ -13,7 +13,7 @@ struct DynamicIslandView: View {
     let icon: String?
     let onClose: (() -> Void)?
     var onInsertNow: (() -> Void)? = nil
-    var actionButtonTitle: String = "Insert Now"
+    var actionButtonTitle: String = "Do it"
     var actionButtonIcon: String = "sparkles"
 
     @Binding var isVisible: Bool
@@ -96,68 +96,57 @@ struct DynamicIslandView: View {
     // MARK: - Expanded Content
 
     private var expandedContent: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 12) {
             // Icon
             if let icon {
-                ZStack {
-                    Circle()
-                        .fill(.white.opacity(0.15))
-                        .frame(width: 32, height: 32)
-
-                    Image(systemName: icon)
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(.white)
-                }
-            }
-
-            // Title & Message
-            VStack(alignment: .leading, spacing: 1) {
-                Text(title)
-                    .font(.system(size: 13, weight: .semibold))
+                Image(systemName: icon)
+                    .font(.system(size: 16, weight: .medium))
                     .foregroundStyle(.white)
-                    .lineLimit(1)
-
-                if let message {
-                    Text(message)
-                        .font(.system(size: 11, weight: .regular))
-                        .foregroundStyle(.white.opacity(0.7))
-                        .lineLimit(1)
-                }
+                    .frame(width: 24, height: 24)
             }
 
-            Spacer(minLength: 8)
+            // Single clean title text
+            Text(title)
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(.white)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
 
-            // Action buttons in line
-            HStack(spacing: 6) {
+            Spacer(minLength: 12)
+
+            // Action buttons
+            HStack(spacing: 8) {
                 // Primary action button
-                Button {
-                    onInsertNow?()
-                    onClose?()
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: actionButtonIcon)
-                            .font(.system(size: 10, weight: .medium))
-                        Text(actionButtonTitle)
-                            .font(.system(size: 11, weight: .semibold))
+                if onInsertNow != nil {
+                    Button {
+                        onInsertNow?()
+                        onClose?()
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: actionButtonIcon)
+                                .font(.system(size: 10, weight: .medium))
+                            Text(actionButtonTitle)
+                                .font(.system(size: 11, weight: .semibold))
+                        }
+                        .foregroundStyle(.black)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(
+                            Capsule()
+                                .fill(.white)
+                        )
                     }
-                    .foregroundStyle(.black)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(
-                        Capsule()
-                            .fill(.white)
-                    )
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
 
                 // Close/Dismiss button
                 Button {
                     onClose?()
                 } label: {
                     Image(systemName: "xmark")
-                        .font(.system(size: 9, weight: .bold))
+                        .font(.system(size: 10, weight: .semibold))
                         .foregroundStyle(.white.opacity(0.6))
-                        .frame(width: 22, height: 22)
+                        .frame(width: 20, height: 20)
                         .background(Circle().fill(.white.opacity(0.1)))
                 }
                 .buttonStyle(.plain)
@@ -245,8 +234,8 @@ struct DynamicIslandShape: Shape {
 
         VStack {
             DynamicIslandView(
-                title: "John Doe",
-                message: "Hey! How are you doing today?",
+                title: "New message from John",
+                message: nil,
                 icon: "message.fill",
                 onClose: {},
                 isVisible: $isVisible

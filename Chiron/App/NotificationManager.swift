@@ -12,7 +12,7 @@ final class NotificationManager: ObservableObject {
     @Published var title = "Notification"
     @Published var message: String? = nil
     @Published var icon: String? = "bell.fill"
-    @Published var actionButtonTitle: String = "Insert Now"
+    @Published var actionButtonTitle: String = "Do it"
     @Published var actionButtonIcon: String = "sparkles"
 
     private var overlayWindow: NSWindow?
@@ -27,7 +27,7 @@ final class NotificationManager: ObservableObject {
         title: String,
         message: String? = nil,
         icon: String? = "bell.fill",
-        actionButtonTitle: String = "Insert Now",
+        actionButtonTitle: String = "Do it",
         actionButtonIcon: String = "sparkles",
         autoDismissAfter: TimeInterval = 6.0,
         onAddToQueue: (() -> Void)? = nil,
