@@ -24,7 +24,7 @@ struct DynamicIslandView: View {
 
     // Dimensions
     private let expandedWidth: CGFloat = 380
-    private let expandedHeight: CGFloat = 160
+    private let expandedHeight: CGFloat = 80
     private let collapsedWidth: CGFloat = 180  // MacBook notch width approx
     private let collapsedHeight: CGFloat = 32  // MacBook notch height approx
     private let cornerRadius: CGFloat = 28
@@ -96,79 +96,76 @@ struct DynamicIslandView: View {
     // MARK: - Expanded Content
 
     private var expandedContent: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // Header
-            HStack(spacing: 12) {
-                // Icon
-                if let icon {
-                    ZStack {
-                        Circle()
-                            .fill(.white.opacity(0.15))
-                            .frame(width: 40, height: 40)
+        HStack(spacing: 10) {
+            // Icon
+            if let icon {
+                ZStack {
+                    Circle()
+                        .fill(.white.opacity(0.15))
+                        .frame(width: 32, height: 32)
 
-                        Image(systemName: icon)
-                            .font(.system(size: 18, weight: .semibold))
-                            .foregroundStyle(.white)
-                    }
-                }
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
+                    Image(systemName: icon)
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(.white)
-                        .lineLimit(1)
-
-                    if let message {
-                        Text(message)
-                            .font(.system(size: 12, weight: .regular))
-                            .foregroundStyle(.white.opacity(0.7))
-                            .lineLimit(2)
-                    }
                 }
-
-                Spacer(minLength: 0)
-
-                // Close button
-                Button {
-                    onClose?()
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(.white.opacity(0.6))
-                        .frame(width: 24, height: 24)
-                        .background(Circle().fill(.white.opacity(0.1)))
-                }
-                .buttonStyle(.plain)
             }
 
-            // Action button
-            HStack {
-                Spacer()
+            // Title & Message
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
 
+                if let message {
+                    Text(message)
+                        .font(.system(size: 11, weight: .regular))
+                        .foregroundStyle(.white.opacity(0.7))
+                        .lineLimit(1)
+                }
+            }
+
+            Spacer(minLength: 8)
+
+            // Action buttons in line
+            HStack(spacing: 6) {
+                // Primary action button
                 Button {
                     onInsertNow?()
                     onClose?()
                 } label: {
-                    HStack(spacing: 6) {
+                    HStack(spacing: 4) {
                         Image(systemName: actionButtonIcon)
-                            .font(.system(size: 11, weight: .medium))
+                            .font(.system(size: 10, weight: .medium))
                         Text(actionButtonTitle)
-                            .font(.system(size: 12, weight: .semibold))
+                            .font(.system(size: 11, weight: .semibold))
                     }
                     .foregroundStyle(.black)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
                     .background(
                         Capsule()
                             .fill(.white)
                     )
                 }
                 .buttonStyle(.plain)
+
+                // Close/Dismiss button
+                Button {
+                    onClose?()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(.white.opacity(0.6))
+                        .frame(width: 22, height: 22)
+                        .background(Circle().fill(.white.opacity(0.1)))
+                }
+                .buttonStyle(.plain)
             }
         }
-        .padding(.top, 64)
+        .padding(.top, 40)
         .padding(.horizontal, 16)
-        .padding(.bottom, 16)
+        .padding(.bottom, 12)
     }
 }
 

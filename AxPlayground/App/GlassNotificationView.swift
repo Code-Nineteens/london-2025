@@ -1,3 +1,10 @@
+//
+//  GlassNotificationView.swift
+//  AxPlayground
+//
+//  Redesigned notification with next-level AI aesthetic.
+//
+
 import SwiftUI
 
 struct GlassNotificationView: View {
@@ -8,35 +15,45 @@ struct GlassNotificationView: View {
     var onAddToQueue: (() -> Void)? = nil
     var onInsertNow: (() -> Void)? = nil
     var onReject: (() -> Void)? = nil
+    var actionButtonTitle: String = "Execute"
+    var actionButtonIcon: String = "sparkles"
     
     @State private var isHovering = false
     @State private var appearAnimation = false
+    @State private var glowPulse = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: AXSpacing.md) {
             // Header with icon and title
-            HStack(spacing: 12) {
-                // Animated icon with gradient
+            HStack(spacing: AXSpacing.md) {
+                // Animated icon with gradient glow
                 ZStack {
+                    // Outer glow
+                    Circle()
+                        .fill(Color.axPrimary.opacity(0.3))
+                        .frame(width: 44, height: 44)
+                        .blur(radius: glowPulse ? 8 : 4)
+                    
+                    // Icon background
                     Circle()
                         .fill(
                             LinearGradient(
                                 colors: [
-                                    Color.blue.opacity(0.3),
-                                    Color.purple.opacity(0.2)
+                                    Color.axPrimary.opacity(0.3),
+                                    Color.axAccent.opacity(0.2)
                                 ],
                                 startPoint: .topLeading,
                                 endPoint: .bottomTrailing
                             )
                         )
-                        .frame(width: 36, height: 36)
+                        .frame(width: 40, height: 40)
                     
                     if let icon {
                         Image(systemName: icon)
-                            .font(.system(size: 16, weight: .semibold))
+                            .font(.system(size: 18, weight: .semibold))
                             .foregroundStyle(
                                 LinearGradient(
-                                    colors: [.blue, .purple],
+                                    colors: [.axPrimaryLight, .axAccent],
                                     startPoint: .topLeading,
                                     endPoint: .bottomTrailing
                                 )
@@ -45,16 +62,16 @@ struct GlassNotificationView: View {
                     }
                 }
                 
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: AXSpacing.xxs) {
                     Text(title)
-                        .font(.system(size: 13, weight: .semibold, design: .rounded))
-                        .foregroundStyle(.primary)
+                        .font(AXTypography.headlineSmall)
+                        .foregroundColor(Color.axTextPrimary)
                     
                     if let message {
                         Text(message)
-                            .font(.system(size: 11, weight: .regular))
-                            .foregroundStyle(.secondary)
-                            .lineLimit(2)
+                            .font(AXTypography.bodySmall)
+                            .foregroundColor(Color.axTextSecondary)
+                            .lineLimit(3)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
@@ -67,76 +84,112 @@ struct GlassNotificationView: View {
                     onClose?()
                 } label: {
                     Image(systemName: "xmark")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 20, height: 20)
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundColor(Color.axTextTertiary)
+                        .frame(width: 24, height: 24)
                         .background(
                             Circle()
-                                .fill(.primary.opacity(0.08))
+                                .fill(Color.axSurfaceElevated)
                         )
                 }
                 .buttonStyle(.plain)
                 .opacity(isHovering ? 1 : 0.6)
             }
 
-            // Action button
-            HStack(spacing: 10) {
-                // Insert Now button (primary action)
+            // Action buttons
+            HStack(spacing: AXSpacing.sm) {
+                // Primary action button
                 Button {
                     onInsertNow?()
                     onClose?()
                 } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: "sparkles")
-                            .font(.system(size: 11, weight: .medium))
-                        Text("Insert Now")
-                            .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    HStack(spacing: AXSpacing.xs) {
+                        Image(systemName: actionButtonIcon)
+                            .font(.system(size: 12, weight: .medium))
+                        Text(actionButtonTitle)
+                            .font(AXTypography.labelMedium)
                     }
                     .foregroundStyle(.white)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 7)
+                    .padding(.horizontal, AXSpacing.lg)
+                    .padding(.vertical, AXSpacing.sm)
                     .background(
                         Capsule()
-                            .fill(
-                                LinearGradient(
-                                    colors: [
-                                        Color.blue,
-                                        Color.purple.opacity(0.9)
-                                    ],
-                                    startPoint: .leading,
-                                    endPoint: .trailing
-                                )
-                            )
+                            .fill(AXGradients.primary)
                     )
-                    .shadow(color: .blue.opacity(0.3), radius: 8, x: 0, y: 4)
+                    .shadow(color: .axPrimary.opacity(0.4), radius: 12, x: 0, y: 4)
                 }
                 .buttonStyle(.plain)
+                
+                // Secondary action (if available)
+                if onAddToQueue != nil {
+                    Button {
+                        onAddToQueue?()
+                        onClose?()
+                    } label: {
+                        HStack(spacing: AXSpacing.xs) {
+                            Image(systemName: "plus.circle")
+                                .font(.system(size: 12, weight: .medium))
+                            Text("Queue")
+                                .font(AXTypography.labelMedium)
+                        }
+                        .foregroundColor(Color.axTextPrimary)
+                        .padding(.horizontal, AXSpacing.md)
+                        .padding(.vertical, AXSpacing.sm)
+                        .background(
+                            Capsule()
+                                .fill(Color.axSurfaceElevated)
+                        )
+                        .overlay(
+                            Capsule()
+                                .stroke(Color.axBorder, lineWidth: 1)
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
             }
         }
-        .padding(16)
-        .frame(minWidth: 200, maxWidth: 320)
+        .padding(AXSpacing.lg)
+        .frame(minWidth: 280, maxWidth: 360)
         .fixedSize()
         .background(
-            RoundedRectangle(cornerRadius: 20)
-                .fill(.ultraThinMaterial)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 20)
-                        .stroke(
-                            LinearGradient(
-                                colors: [
-                                    Color.white.opacity(0.5),
-                                    Color.white.opacity(0.2),
-                                    Color.clear,
-                                    Color.white.opacity(0.1)
-                                ],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            ),
-                            lineWidth: 1
+            ZStack {
+                // Main glass background
+                RoundedRectangle(cornerRadius: AXRadius.xl)
+                    .fill(.ultraThinMaterial)
+                
+                // Subtle gradient overlay
+                RoundedRectangle(cornerRadius: AXRadius.xl)
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                Color.axPrimary.opacity(0.05),
+                                Color.clear,
+                                Color.axAccent.opacity(0.03)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
                         )
-                )
-                .shadow(color: Color.black.opacity(0.2), radius: 20, x: 0, y: 10)
+                    )
+                
+                // Border with gradient
+                RoundedRectangle(cornerRadius: AXRadius.xl)
+                    .stroke(
+                        LinearGradient(
+                            stops: [
+                                .init(color: Color.axPrimary.opacity(0.4), location: 0),
+                                .init(color: Color.white.opacity(0.15), location: 0.3),
+                                .init(color: Color.clear, location: 0.6),
+                                .init(color: Color.axAccent.opacity(0.2), location: 1)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: 1
+                    )
+            }
         )
+        .shadow(color: Color.axPrimary.opacity(0.15), radius: 30, x: 0, y: 15)
+        .shadow(color: Color.black.opacity(0.3), radius: 20, x: 0, y: 10)
         .onHover { hovering in
             withAnimation(.easeInOut(duration: 0.2)) {
                 isHovering = hovering
@@ -146,46 +199,49 @@ struct GlassNotificationView: View {
             withAnimation(.easeOut(duration: 0.5).delay(0.2)) {
                 appearAnimation = true
             }
+            withAnimation(.easeInOut(duration: 2).repeatForever(autoreverses: true)) {
+                glowPulse = true
+            }
         }
     }
 }
 
-// MARK: - Liquid Glass Modifier
+// MARK: - Liquid Glass Modifier (Updated)
 
 extension View {
     @ViewBuilder
     func liquidGlass() -> some View {
         if #available(macOS 26.0, iOS 26.0, *) {
-            self.glassEffect(.regular.interactive(), in: .rect(cornerRadius: 24))
+            self.glassEffect(.regular.interactive(), in: .rect(cornerRadius: AXRadius.xxl))
         } else {
             self
                 .background {
                     ZStack {
                         // Base blur material
-                        RoundedRectangle(cornerRadius: 24, style: .continuous)
+                        RoundedRectangle(cornerRadius: AXRadius.xxl, style: .continuous)
                             .fill(.ultraThinMaterial)
                         
                         // Subtle color tint
-                        RoundedRectangle(cornerRadius: 24, style: .continuous)
+                        RoundedRectangle(cornerRadius: AXRadius.xxl, style: .continuous)
                             .fill(
                                 LinearGradient(
                                     colors: [
-                                        Color.white.opacity(0.15),
-                                        Color.white.opacity(0.05)
+                                        Color.axPrimary.opacity(0.08),
+                                        Color.axAccent.opacity(0.04)
                                     ],
                                     startPoint: .topLeading,
                                     endPoint: .bottomTrailing
                                 )
                             )
                         
-                        // Top specular highlight - the "liquid" shine
-                        RoundedRectangle(cornerRadius: 24, style: .continuous)
+                        // Top specular highlight
+                        RoundedRectangle(cornerRadius: AXRadius.xxl, style: .continuous)
                             .fill(
                                 LinearGradient(
                                     stops: [
-                                        .init(color: .white.opacity(0.6), location: 0),
-                                        .init(color: .white.opacity(0.3), location: 0.03),
-                                        .init(color: .white.opacity(0.1), location: 0.1),
+                                        .init(color: .white.opacity(0.4), location: 0),
+                                        .init(color: .white.opacity(0.15), location: 0.03),
+                                        .init(color: .white.opacity(0.05), location: 0.1),
                                         .init(color: .clear, location: 0.4)
                                     ],
                                     startPoint: .top,
@@ -194,15 +250,14 @@ extension View {
                             )
                         
                         // Inner glow border
-                        RoundedRectangle(cornerRadius: 24, style: .continuous)
+                        RoundedRectangle(cornerRadius: AXRadius.xxl, style: .continuous)
                             .strokeBorder(
                                 LinearGradient(
                                     stops: [
-                                        .init(color: .white.opacity(0.7), location: 0),
-                                        .init(color: .white.opacity(0.3), location: 0.2),
-                                        .init(color: .white.opacity(0.1), location: 0.5),
-                                        .init(color: .white.opacity(0.2), location: 0.8),
-                                        .init(color: .white.opacity(0.4), location: 1)
+                                        .init(color: Color.axPrimary.opacity(0.5), location: 0),
+                                        .init(color: .white.opacity(0.2), location: 0.2),
+                                        .init(color: .white.opacity(0.05), location: 0.5),
+                                        .init(color: Color.axAccent.opacity(0.3), location: 1)
                                     ],
                                     startPoint: .topLeading,
                                     endPoint: .bottomTrailing
@@ -211,10 +266,26 @@ extension View {
                             )
                     }
                 }
-                // Layered shadows for depth
-                .shadow(color: .black.opacity(0.08), radius: 1, x: 0, y: 1)
-                .shadow(color: .black.opacity(0.12), radius: 8, x: 0, y: 4)
-                .shadow(color: .black.opacity(0.16), radius: 24, x: 0, y: 12)
+                .shadow(color: .axPrimary.opacity(0.1), radius: 20, x: 0, y: 10)
+                .shadow(color: .black.opacity(0.2), radius: 30, x: 0, y: 15)
         }
+    }
+}
+
+// MARK: - Preview
+
+#Preview {
+    ZStack {
+        Color.axBackground
+            .ignoresSafeArea()
+        
+        GlassNotificationView(
+            title: "AI Suggestion",
+            message: "I detected you're writing an email. Would you like me to help compose it?",
+            icon: "wand.and.stars",
+            onClose: {},
+            onAddToQueue: {},
+            onInsertNow: {}
+        )
     }
 }
