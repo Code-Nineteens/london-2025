@@ -20,6 +20,7 @@ final class ContextCollector: ObservableObject {
     
     private let store = ContextStore.shared
     private let embeddingService = OpenAIEmbeddingService.shared
+    private let userProfileManager = UserProfileManager.shared
     
     // MARK: - State
     
@@ -183,8 +184,27 @@ final class ContextCollector: ObservableObject {
             recentHashes.removeFirst()
         }
         
-        let entities = extractEntities(from: text)
+        var entities = extractEntities(from: text)
         let topic = classifyTopic(content: text, appName: appName)
+        
+        // Filter out user's own name from entities (don't treat self as contact)
+        let userProfile = userProfileManager.profile
+        entities = entities.filter { entity in
+            if entity.type == .person && userProfile.isMe(entity.value) {
+                return false
+            }
+            return true
+        }
+        
+        // Log extracted entities
+        if !entities.isEmpty {
+            print("🔍 OCR: Extracted entities: \(entities.map { "\($0.type.rawValue): \($0.value)" }.joined(separator: ", "))")
+            // Learn contacts from entities
+            userProfileManager.learnFromEntities(entities)
+        }
+        if let topic = topic {
+            print("🔍 OCR: Topic: \(topic)")
+        }
         
         let chunk = ContextChunk(
             source: .ocr,
@@ -369,6 +389,13 @@ final class ContextCollector: ObservableObject {
     private func extractEntities(from text: String) -> [Entity] {
         var entities: [Entity] = []
         
+        // 1. Extract Slack-style names (e.g., "Kamil Moskała 7:10 PM", "Filip Wnęk")
+        extractSlackNames(from: text, into: &entities)
+        
+        // 2. Extract DM/Channel names from Slack OCR
+        extractSlackContext(from: text, into: &entities)
+        
+        // 3. Apple NLTagger for general names
         let tagger = NLTagger(tagSchemes: [.nameType])
         tagger.string = text
         
@@ -390,15 +417,15 @@ final class ContextCollector: ObservableObject {
                     return true
                 }
                 
-                // Avoid duplicates
-                if !entities.contains(where: { $0.value == value }) {
+                // Avoid duplicates (case insensitive)
+                if !entities.contains(where: { $0.value.lowercased() == value.lowercased() }) {
                     entities.append(Entity(type: entityType, value: value))
                 }
             }
             return true
         }
         
-        // Extract emails with regex
+        // 4. Extract emails with regex
         let emailPattern = #"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}"#
         if let regex = try? NSRegularExpression(pattern: emailPattern),
            let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)) {
@@ -407,7 +434,7 @@ final class ContextCollector: ObservableObject {
             }
         }
         
-        // Extract money amounts (PLN, USD, EUR)
+        // 5. Extract money amounts (PLN, USD, EUR)
         let moneyPattern = #"[\d\s,.]+\s*(PLN|USD|EUR|zł|€|\$)"#
         if let regex = try? NSRegularExpression(pattern: moneyPattern, options: .caseInsensitive),
            let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)) {
@@ -416,7 +443,99 @@ final class ContextCollector: ObservableObject {
             }
         }
         
+        // 6. Extract Polish-style names (Imię Nazwisko pattern)
+        extractPolishNames(from: text, into: &entities)
+        
         return entities
+    }
+    
+    /// Extract names from Slack message format (e.g., "Kamil Moskała 7:10 PM")
+    private func extractSlackNames(from text: String, into entities: inout [Entity]) {
+        // Pattern: Name Surname followed by time (e.g., "Kamil Moskała 7:10 PM")
+        let slackNamePattern = #"([A-ZŻŹĆĄŚĘŁÓŃ][a-zżźćąśęłóń]+\s+[A-ZŻŹĆĄŚĘŁÓŃ][a-zżźćąśęłóń]+)\s+\d{1,2}:\d{2}\s*(AM|PM)?"#
+        
+        if let regex = try? NSRegularExpression(pattern: slackNamePattern, options: []) {
+            let matches = regex.matches(in: text, range: NSRange(text.startIndex..., in: text))
+            for match in matches {
+                if match.numberOfRanges > 1,
+                   let nameRange = Range(match.range(at: 1), in: text) {
+                    let name = String(text[nameRange]).trimmingCharacters(in: .whitespaces)
+                    if !entities.contains(where: { $0.value.lowercased() == name.lowercased() }) {
+                        entities.append(Entity(type: .person, value: name, confidence: 0.9))
+                    }
+                }
+            }
+        }
+    }
+    
+    /// Extract Slack DM/Channel context
+    private func extractSlackContext(from text: String, into entities: inout [Entity]) {
+        // Look for DM indicator: ". Name Surname" at start or "Message to Name"
+        let dmPatterns = [
+            #"\.\s*([A-ZŻŹĆĄŚĘŁÓŃ][a-zżźćąśęłóń]+\s+[A-ZŻŹĆĄŚĘŁÓŃ][a-zżźćąśęłóń]+)"#, // ". Kamil Moskała"
+            #"Message to\s+([A-ZŻŹĆĄŚĘŁÓŃ][a-zżźćąśęłóń]+(?:\s+[A-ZŻŹĆĄŚĘŁÓŃ][a-zżźćąśęłóń]+)?)"#, // "Message to Kamil"
+        ]
+        
+        for pattern in dmPatterns {
+            if let regex = try? NSRegularExpression(pattern: pattern, options: []) {
+                let matches = regex.matches(in: text, range: NSRange(text.startIndex..., in: text))
+                for match in matches {
+                    if match.numberOfRanges > 1,
+                       let nameRange = Range(match.range(at: 1), in: text) {
+                        let name = String(text[nameRange]).trimmingCharacters(in: .whitespaces)
+                        if !entities.contains(where: { $0.value.lowercased() == name.lowercased() }) {
+                            entities.append(Entity(type: .person, value: name, confidence: 0.95))
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Extract channel names: "# channelname"
+        let channelPattern = #"#\s*([a-z0-9_-]+)"#
+        if let regex = try? NSRegularExpression(pattern: channelPattern, options: .caseInsensitive) {
+            let matches = regex.matches(in: text, range: NSRange(text.startIndex..., in: text))
+            for match in matches {
+                if match.numberOfRanges > 1,
+                   let channelRange = Range(match.range(at: 1), in: text) {
+                    let channel = String(text[channelRange])
+                    if channel != "general" && !entities.contains(where: { $0.value == channel }) {
+                        entities.append(Entity(type: .project, value: channel, confidence: 0.8))
+                    }
+                }
+            }
+        }
+    }
+    
+    /// Extract Polish-style names (capitalized word pairs)
+    private func extractPolishNames(from text: String, into entities: inout [Entity]) {
+        // Common Polish first names to help identify name patterns
+        let commonFirstNames = Set(["Adam", "Kamil", "Filip", "Piotr", "Marcin", "Tomasz", "Michał", 
+                                     "Krzysztof", "Paweł", "Anna", "Maria", "Katarzyna", "Monika",
+                                     "Agnieszka", "Ewa", "Bart", "Bartek"])
+        
+        // Pattern: Two capitalized words that might be a name
+        let namePattern = #"\b([A-ZŻŹĆĄŚĘŁÓŃ][a-zżźćąśęłóń]+)\s+([A-ZŻŹĆĄŚĘŁÓŃ][a-zżźćąśęłóń]+)\b"#
+        
+        if let regex = try? NSRegularExpression(pattern: namePattern, options: []) {
+            let matches = regex.matches(in: text, range: NSRange(text.startIndex..., in: text))
+            for match in matches {
+                if match.numberOfRanges > 2,
+                   let firstRange = Range(match.range(at: 1), in: text),
+                   let lastRange = Range(match.range(at: 2), in: text) {
+                    let firstName = String(text[firstRange])
+                    let lastName = String(text[lastRange])
+                    let fullName = "\(firstName) \(lastName)"
+                    
+                    // Check if first name looks like a common name
+                    if commonFirstNames.contains(firstName) || commonFirstNames.contains(String(firstName.prefix(4))) {
+                        if !entities.contains(where: { $0.value.lowercased() == fullName.lowercased() }) {
+                            entities.append(Entity(type: .person, value: fullName, confidence: 0.85))
+                        }
+                    }
+                }
+            }
+        }
     }
     
     // MARK: - Topic Classification

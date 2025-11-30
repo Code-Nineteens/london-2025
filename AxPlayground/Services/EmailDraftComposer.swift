@@ -18,6 +18,7 @@ final class EmailDraftComposer: ObservableObject {
     
     private let llmClient = AnthropicClient.shared
     private let contextRetriever = ContextRetriever.shared
+    private let userProfileManager = UserProfileManager.shared
     
     // MARK: - Configuration
     
@@ -27,9 +28,6 @@ final class EmailDraftComposer: ObservableObject {
     
     @Published var lastDraft: EmailDraftPayload?
     @Published var isComposing = false
-    
-    /// User's writing style profile
-    private var userStyle: UserWritingStyle = .defaultPolish
     
     private init() {}
     
@@ -171,36 +169,40 @@ final class EmailDraftComposer: ObservableObject {
         contextString: String,
         systemState: SystemState
     ) -> String {
-        let hasContext = !contextString.isEmpty && contextString != "AVAILABLE CONTEXT:\n(No relevant context found)\n"
+        let hasContext = !contextString.isEmpty && contextString != "No relevant context available."
+        let userProfile = userProfileManager.profile
         
         return """
         TASK: Compose a real, sendable email based on the user's intent and context.
         
         USER INTENT: "\(intent)"
         
-        USER WRITING STYLE:
-        - Language: \(userStyle.preferredLanguage) (ALWAYS write in this language!)
-        - Formality: \(userStyle.formalityLevel)
-        - Greetings: \(userStyle.greetings.joined(separator: ", "))
-        - Closings: \(userStyle.closings.joined(separator: ", "))
+        \(userProfile.contextForLLM())
+        
+        IMPORTANT: The USER is \(userProfile.name). When you see messages FROM \(userProfile.name), those are the USER's own messages.
+        When composing email, write AS \(userProfile.name), not TO \(userProfile.name).
         
         CURRENT APP: \(systemState.activeApp)
         
         \(contextString)
         
         CRITICAL RULES:
-        1. NEVER repeat the intent literally in the email body
-        2. If the intent is vague (e.g., "send email to client"), you MUST:
+        1. You are composing email FOR \(userProfile.name), not to them
+        2. NEVER repeat the intent literally in the email body
+        3. If the intent is vague (e.g., "send email to client"), you MUST:
            - Look for specific client names, projects, or topics in the CONTEXT
            - If found: write email about that specific topic
            - If NOT found: set should_compose_email=false and explain what info is missing
-        3. Write a REAL email that someone could actually send - professional, specific content
-        4. Use context details naturally (names, dates, projects, previous messages)
-        5. NEVER write placeholder text like "[nazwa firmy]" or "[temat]"
+        4. Write a REAL email that someone could actually send - professional, specific content
+        5. Use context details naturally (names, dates, projects, previous messages)
+        6. NEVER write placeholder text like "[nazwa firmy]" or "[temat]"
+        7. Sign the email as \(userProfile.name) (or just first name)
         
         \(hasContext ? """
         CONTEXT ANALYSIS:
         - Review the context chunks above carefully
+        - Messages FROM \(userProfile.name) = what the USER wrote
+        - Messages TO/FROM others = conversation partners (potential recipients)
         - Find: recipient names, email addresses, project names, recent topics, deadlines
         - Use these details to write a specific, relevant email
         """ : """

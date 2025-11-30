@@ -36,10 +36,11 @@ final class ContextRetriever: ObservableObject {
         print("🎯 ContextRetriever: Searching for '\(intent)'")
         
         var candidates: [ContextChunk] = []
+        var entityMatchedIds: Set<UUID> = [] // Track chunks that matched by entity
         
-        // 1. Extract entities from intent
+        // 1. Extract entities from intent (improved)
         let intentEntities = extractEntitiesFromIntent(intent)
-        print("🎯 Extracted entities: \(intentEntities)")
+        print("🎯 Extracted entities from intent: \(intentEntities.map { "\($0.type.rawValue): \($0.value)" })")
         
         // 2. Semantic search if embeddings are available
         if await embeddingService.isConfigured {
@@ -65,14 +66,29 @@ final class ContextRetriever: ObservableObject {
             print("⚠️ Text search failed: \(error)")
         }
         
-        // 4. Entity-based search
+        // 4. Entity-based search (PRIORITY - these chunks directly mention the entity)
         for entity in intentEntities {
             do {
                 let entityResults = try await store.getByEntity(type: entity.type, value: entity.value)
+                for chunk in entityResults {
+                    entityMatchedIds.insert(chunk.id)
+                }
                 candidates.append(contentsOf: entityResults)
                 print("🎯 Entity search '\(entity.value)' found \(entityResults.count) results")
             } catch {
                 print("⚠️ Entity search failed: \(error)")
+            }
+            
+            // Also search for partial name matches (e.g., "Kamil" matches "Kamil Moskała")
+            let nameOnly = entity.value.components(separatedBy: " ").first ?? entity.value
+            if nameOnly != entity.value && nameOnly.count >= 3 {
+                if let partialResults = try? await store.searchText(query: nameOnly, limit: 10) {
+                    for chunk in partialResults {
+                        entityMatchedIds.insert(chunk.id)
+                    }
+                    candidates.append(contentsOf: partialResults)
+                    print("🎯 Partial name search '\(nameOnly)' found \(partialResults.count) results")
+                }
             }
         }
         
@@ -99,16 +115,28 @@ final class ContextRetriever: ObservableObject {
             return true
         }
         
-        // 7. Score and rank
+        // 7. Score and rank (with HEAVY entity boost)
         let scored = unique.map { chunk -> (chunk: ContextChunk, score: Float) in
             let recency = recencyScore(chunk.timestamp)
             let entityMatch = entityOverlapScore(intentEntities, chunk.entities)
             let topicMatch = topicMatchScore(intent, chunk)
             
+            // BIG BOOST for chunks that were found by entity search
+            let entitySearchBoost: Float = entityMatchedIds.contains(chunk.id) ? 0.5 : 0.0
+            
+            // Also check if chunk content contains any of the intent entities
+            let contentContainsEntity = intentEntities.contains { entity in
+                chunk.content.lowercased().contains(entity.value.lowercased()) ||
+                chunk.content.lowercased().contains(entity.value.components(separatedBy: " ").first?.lowercased() ?? "")
+            }
+            let contentBoost: Float = contentContainsEntity ? 0.3 : 0.0
+            
             // Combine scores
             let score = recencyWeight * recency +
                         relevanceWeight * topicMatch +
-                        entityWeight * entityMatch
+                        entityWeight * entityMatch +
+                        entitySearchBoost +
+                        contentBoost
             
             return (chunk, score)
         }
@@ -119,7 +147,13 @@ final class ContextRetriever: ObservableObject {
             .prefix(maxResults)
             .map(\.chunk)
         
-        print("🎯 Returning \(results.count) relevant chunks")
+        // Log what we're returning
+        print("🎯 Returning \(results.count) relevant chunks:")
+        for (i, chunk) in results.prefix(3).enumerated() {
+            let entities = chunk.entities.map { $0.value }.joined(separator: ", ")
+            print("🎯   [\(i+1)] \(chunk.source.rawValue) - entities: [\(entities)] - \(chunk.content.prefix(50))...")
+        }
+        
         return Array(results)
     }
     
@@ -154,29 +188,56 @@ final class ContextRetriever: ObservableObject {
     private func extractEntitiesFromIntent(_ intent: String) -> [Entity] {
         var entities: [Entity] = []
         
-        // Simple pattern matching for common patterns
-        let patterns: [(String, EntityType)] = [
-            // "do klienta X", "do X"
-            (#"do\s+(\w+)"#, .person),
-            // "klient X", "klienta X"
-            (#"klient[a]?\s+(\w+)"#, .person),
+        // 1. Extract names after Polish prepositions (supports full names)
+        let namePatterns: [(String, EntityType)] = [
+            // "do Kamila", "do Kamila Moskały", "do klienta ABC"
+            (#"do\s+([A-ZŻŹĆĄŚĘŁÓŃ][a-zżźćąśęłóń]+(?:\s+[A-ZŻŹĆĄŚĘŁÓŃ][a-zżźćąśęłóń]+)?)"#, .person),
+            // "mail/email do X"
+            (#"(?:mail|email)\s+do\s+([A-ZŻŹĆĄŚĘŁÓŃ][a-zżźćąśęłóń]+(?:\s+[A-ZŻŹĆĄŚĘŁÓŃ][a-zżźćąśęłóń]+)?)"#, .person),
+            // "klient/klienta X"
+            (#"klient[a]?\s+([A-ZŻŹĆĄŚĘŁÓŃ][a-zżźćąśęłóń]+(?:\s+[A-ZŻŹĆĄŚĘŁÓŃ][a-zżźćąśęłóń]+)?)"#, .person),
             // "projekt X"
             (#"projekt[u]?\s+(\w+)"#, .project),
             // "firma X"
-            (#"firm[ay]?\s+(\w+)"#, .company),
+            (#"firm[ay]?\s+([A-ZŻŹĆĄŚĘŁÓŃ][a-zżźćąśęłóń]+(?:\s+[A-ZŻŹĆĄŚĘŁÓŃ][a-zżźćąśęłóń]+)?)"#, .company),
         ]
         
-        for (pattern, entityType) in patterns {
-            if let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) {
+        for (pattern, entityType) in namePatterns {
+            if let regex = try? NSRegularExpression(pattern: pattern, options: []) {
                 let range = NSRange(intent.startIndex..., in: intent)
                 if let match = regex.firstMatch(in: intent, range: range) {
                     if match.numberOfRanges > 1,
                        let captureRange = Range(match.range(at: 1), in: intent) {
-                        let value = String(intent[captureRange])
-                        if value.count > 1 {
+                        let value = String(intent[captureRange]).trimmingCharacters(in: .whitespaces)
+                        if value.count > 1 && !entities.contains(where: { $0.value.lowercased() == value.lowercased() }) {
                             entities.append(Entity(type: entityType, value: value))
                         }
                     }
+                }
+            }
+        }
+        
+        // 2. Look for any capitalized words that might be names (Polish names)
+        let commonFirstNames = Set(["Adam", "Kamil", "Filip", "Piotr", "Marcin", "Tomasz", "Michał", 
+                                     "Krzysztof", "Paweł", "Anna", "Maria", "Katarzyna", "Monika", "Bartek"])
+        
+        let words = intent.components(separatedBy: CharacterSet.whitespaces)
+        for word in words {
+            let cleaned = word.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+            if cleaned.first?.isUppercase == true && 
+               (commonFirstNames.contains(cleaned) || commonFirstNames.contains(String(cleaned.prefix(4)))) {
+                if !entities.contains(where: { $0.value.lowercased() == cleaned.lowercased() }) {
+                    entities.append(Entity(type: .person, value: cleaned))
+                }
+            }
+        }
+        
+        // 3. Also check for lowercase names that might be typos
+        let lowercaseIntent = intent.lowercased()
+        for name in commonFirstNames {
+            if lowercaseIntent.contains(name.lowercased()) {
+                if !entities.contains(where: { $0.value.lowercased() == name.lowercased() }) {
+                    entities.append(Entity(type: .person, value: name))
                 }
             }
         }
