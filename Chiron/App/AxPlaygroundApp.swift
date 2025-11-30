@@ -51,7 +51,7 @@ struct ChironApp: App {
         }
         .defaultLaunchBehavior(.suppressed)
 
-        MenuBarExtra("Chiron", systemImage: "bolt.fill") {
+        MenuBarExtra("vibecodeos", systemImage: "bolt.fill") {
             MenuBarViewNew(
                 taskItems: $taskItems,
                 accessibilityMonitor: accessibilityMonitor,
@@ -236,7 +236,7 @@ struct MenuBarViewNew: View {
             }
             
             VStack(alignment: .leading, spacing: 0) {
-                Text("Chiron")
+                Text("vibecodeos")
                     .font(AXTypography.headlineSmall)
                     .foregroundColor(Color.axTextPrimary)
                 
