@@ -67,22 +67,37 @@ struct AxPlaygroundApp: App {
 
     private func setupNotificationObserver() {
         NotificationCenterObserver.shared.onNotificationDetected = { title, body in
-            guard let body = body, !body.isEmpty else { return }
+            print("")
+            print("📨 ═══════════════════════════════════════════════════")
+            print("📨 NOTIFICATION OBSERVER CALLBACK TRIGGERED")
+            print("📨 ───────────────────────────────────────────────────")
+            print("📨 title: \(title ?? "nil")")
+            print("📨 body: \(body ?? "nil")")
+            print("📨 ═══════════════════════════════════════════════════")
+            print("")
 
-            print("📨 Notification received: \(body.prefix(100))")
+            guard let body = body, !body.isEmpty else {
+                print("📨 ❌ BLOCKED: body is nil or empty")
+                return
+            }
+
+            print("📨 ✅ Body is valid, proceeding...")
 
             Task {
+                print("📨 Collecting notification context...")
                 await ContextCollector.shared.collectFromNotification(
                     title: title,
                     body: body,
                     app: title?.components(separatedBy: ",").first ?? "System"
                 )
 
+                print("📨 Calling AutomationSuggestionService.processAction...")
                 await AutomationSuggestionService.shared.processAction(
                     actionType: "system_notification",
                     appName: title?.components(separatedBy: ",").first ?? "System",
                     details: body
                 )
+                print("📨 ✅ AutomationSuggestionService.processAction completed")
             }
         }
 

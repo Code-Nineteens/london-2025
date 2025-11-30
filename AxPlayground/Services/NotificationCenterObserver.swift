@@ -147,7 +147,7 @@ final class NotificationCenterObserver: ObservableObject {
         collectAllText(from: element, into: &allTexts)
 
         // Debug: print all found texts
-        print("   Found texts: \(allTexts)")
+        print("🔔 Found texts: \(allTexts)")
 
         // Filter out empty strings and common UI elements
         let filteredTexts = allTexts.filter { text in
@@ -160,13 +160,44 @@ final class NotificationCenterObserver: ObservableObject {
             text.count > 1
         }
 
+        // Check if this is a Mail notification
+        let isMailNotification = filteredTexts.contains { $0 == "Mail" || $0.contains("Re:") || $0.contains("Fwd:") }
+
+        if isMailNotification {
+            print("🔔 Detected Mail notification - extracting only message body")
+            // For Mail: ["Mail", "Sender Name", "Re: Subject", "actual message body"]
+            // We want ONLY the last text (actual message content), skip sender/subject
+            let title = "Mail"
+
+            // Find the actual message body - it's usually the last and longest text
+            // that doesn't look like a subject line (Re:, Fwd:) or sender name
+            let body = filteredTexts
+                .filter { text in
+                    text != "Mail" &&
+                    !text.hasPrefix("Re:") &&
+                    !text.hasPrefix("Fwd:") &&
+                    text.count > 10  // Actual messages are usually longer
+                }
+                .last  // Take the last one (usually the message body)
+
+            print("🔔 Mail - extracted body: \(body ?? "nil")")
+            return (title, body)
+        }
+
         // Usually: first text is app name, second is sender, third+ is message content
         // For Discord: ["Discord", "tuso", "message content"]
         // We want: title = "Discord, tuso", body = "message content"
         let title = filteredTexts.first
 
         // Find the longest text - that's likely the actual message body
-        let body = filteredTexts.dropFirst().max(by: { $0.count < $1.count })
+        // Only skip if it's EXACTLY the same as title (not partial match)
+        let body = filteredTexts.dropFirst()
+            .filter { text in
+                guard let title = title else { return true }
+                // Only skip exact duplicates
+                return text != title
+            }
+            .max(by: { $0.count < $1.count })
 
         return (title, body)
     }

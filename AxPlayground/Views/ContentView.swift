@@ -251,6 +251,21 @@ struct ContentView: View {
             .buttonStyle(.plain)
             .disabled(monitor.events.isEmpty)
             .opacity(monitor.events.isEmpty ? 0.4 : 1)
+
+            Divider()
+                .background(Color.axBorder)
+                .padding(.vertical, AXSpacing.sm)
+
+            // Test Calendar Button
+            Button(action: handleTestCalendar) {
+                HStack(spacing: AXSpacing.sm) {
+                    Image(systemName: "calendar.badge.plus")
+                        .font(.system(size: 12))
+                    Text("Test Calendar")
+                }
+            }
+            .axSecondaryButton(compact: true)
+            .buttonStyle(.plain)
         }
         .padding(.horizontal, AXSpacing.xl)
     }
@@ -462,7 +477,30 @@ struct ContentView: View {
         monitor.clearEvents()
         selectedApp = nil
     }
-    
+
+    private func handleTestCalendar() {
+        print("📅 TEST: Triggering calendar event composition...")
+        Task {
+            let testIntent = "hey! sounds good can we meet today 5pm pls? EMAIL FROM: piotrek.pasztor@gmail.com"
+            let systemState = SystemState(activeApp: "Test")
+
+            if let event = await CalendarEventComposer.shared.composeCalendarEvent(
+                intent: testIntent,
+                recentEvents: [],
+                systemState: systemState
+            ) {
+                print("📅 TEST: Event composed successfully!")
+                if event.isActionable {
+                    CalendarHelper.createEvent(from: event)
+                } else {
+                    print("📅 TEST: Event not actionable - \(event.whyNotCreatable ?? "unknown")")
+                }
+            } else {
+                print("📅 TEST: Failed to compose event")
+            }
+        }
+    }
+
     private func startPermissionCheckTimer() {
         Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { _ in
             monitor.checkPermission()

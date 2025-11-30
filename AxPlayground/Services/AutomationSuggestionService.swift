@@ -19,6 +19,7 @@ final class AutomationSuggestionService: ObservableObject {
     private let intentAnalyzer = IntentAnalyzer.shared
     private let notificationManager = NotificationManager.shared
     private let emailDraftComposer = EmailDraftComposer.shared
+    private let calendarEventComposer = CalendarEventComposer.shared
     
     // MARK: - State
     
@@ -27,6 +28,7 @@ final class AutomationSuggestionService: ObservableObject {
     @Published var lastSuggestion: NotificationPayload?
     @Published var suggestionHistory: [NotificationPayload] = []
     @Published var lastEmailDraft: EmailDraftPayload?
+    @Published var lastCalendarEvent: CalendarEventPayload?
     
     /// Statistics
     @Published var eventsProcessed = 0
@@ -61,17 +63,34 @@ final class AutomationSuggestionService: ObservableObject {
     
     /// Process an action and potentially show suggestion
     func processAction(actionType: String, appName: String, details: String) async {
-        guard isEnabled else { return }
+        print("")
+        print("🔷 ═══════════════════════════════════════════════════")
+        print("🔷 AutomationSuggestionService.processAction CALLED")
+        print("🔷 ───────────────────────────────────────────────────")
+        print("🔷 actionType: \(actionType)")
+        print("🔷 appName: \(appName)")
+        print("🔷 details: \(details.prefix(100))...")
+        print("🔷 isEnabled: \(isEnabled)")
+        print("🔷 ═══════════════════════════════════════════════════")
+        print("")
+
+        guard isEnabled else {
+            print("🔷 ❌ BLOCKED: AutomationSuggestionService is disabled")
+            return
+        }
 
         eventsProcessed += 1
         isProcessing = true
         defer { isProcessing = false }
+
+        print("🔷 Calling intentAnalyzer.processAction...")
 
         guard let payload = await intentAnalyzer.processAction(
             actionType: actionType,
             appName: appName,
             details: details
         ) else {
+            print("🔷 ❌ intentAnalyzer returned nil")
             return
         }
 
@@ -157,18 +176,33 @@ final class AutomationSuggestionService: ObservableObject {
         let suggestedLower = payload.suggestedAction.lowercased()
         let combined = taskLower + " " + suggestedLower
         
+        // Check for calendar/meeting-related keywords FIRST (higher priority)
+        if combined.contains("calendar") || combined.contains("meeting") ||
+           combined.contains("schedule") || combined.contains("meet today") ||
+           combined.contains("meet tomorrow") || combined.contains("chat today") ||
+           combined.contains("catch up") || combined.contains("sync up") ||
+           combined.contains("coffee") || combined.contains("lunch") ||
+           combined.contains("spotkanie") || combined.contains("kalendarz") {
+
+            return (icon: "calendar.badge.plus", handler: { [weak self] in
+                Task { @MainActor in
+                    await self?.composeAndOpenCalendarEvent(for: payload)
+                }
+            })
+        }
+
         // Check for email-related keywords
-        if combined.contains("mail") || combined.contains("email") || 
+        if combined.contains("mail") || combined.contains("email") ||
            combined.contains("wyślij") || combined.contains("send") ||
            combined.contains("maila") {
-            
+
             return (icon: "envelope.fill", handler: { [weak self] in
                 Task { @MainActor in
                     await self?.composeAndOpenEmailDraft(for: payload)
                 }
             })
         }
-        
+
         // Check for message-related keywords
         if combined.contains("message") || combined.contains("wiadomość") ||
            combined.contains("slack") || combined.contains("discord") {
@@ -237,8 +271,52 @@ final class AutomationSuggestionService: ObservableObject {
         return nil
     }
     
+    // MARK: - Calendar Event Composition
+
+    /// Compose calendar event using AI and create in Calendar
+    private func composeAndOpenCalendarEvent(for payload: NotificationPayload) async {
+        print("📅 Composing calendar event for: \(payload.task)")
+
+        // Get recent events from intent analyzer buffer
+        let recentEvents = intentAnalyzer.getRecentEvents()
+        let systemState = intentAnalyzer.getCurrentSystemState()
+
+        // Compose event
+        if let event = await calendarEventComposer.composeCalendarEvent(
+            intent: payload.task,
+            recentEvents: recentEvents,
+            systemState: systemState
+        ) {
+            lastCalendarEvent = event
+
+            if event.isActionable {
+                print("📅 Creating calendar event...")
+                print("📅 Title: \(event.eventTitle)")
+                print("📅 Start: \(event.startTime)")
+                print("📅 End: \(event.endTime)")
+                print("📅 Attendee: \(event.attendeeEmail ?? "none")")
+
+                CalendarHelper.createEvent(from: event)
+            } else {
+                // Show notification about why event cannot be created
+                let reason = event.whyNotCreatable ?? "Not enough information"
+                print("📅 Cannot create event: \(reason)")
+
+                NotificationManager.shared.show(
+                    title: "❌ Cannot create calendar event",
+                    message: reason,
+                    icon: "calendar.badge.exclamationmark"
+                )
+            }
+        } else {
+            // Fallback if LLM fails
+            print("📅 LLM failed, opening Calendar app")
+            CalendarHelper.openCalendarApp()
+        }
+    }
+
     // MARK: - Email Draft Composition
-    
+
     /// Compose full email draft using AI and open in Mail
     private func composeAndOpenEmailDraft(for payload: NotificationPayload) async {
         print("📧 Composing email draft for: \(payload.task)")
