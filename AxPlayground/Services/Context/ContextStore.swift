@@ -39,6 +39,7 @@ actor ContextStore {
         }
         
         try createTables()
+        try rebuildFTSIndex()
         try await loadEmbeddingCache()
         
         isInitialized = true
@@ -78,6 +79,20 @@ actor ContextStore {
             content='context_chunks',
             content_rowid='rowid'
         );
+        
+        -- Triggers to keep FTS in sync
+        CREATE TRIGGER IF NOT EXISTS context_fts_insert AFTER INSERT ON context_chunks BEGIN
+            INSERT INTO context_fts(rowid, content) VALUES (NEW.rowid, NEW.content);
+        END;
+        
+        CREATE TRIGGER IF NOT EXISTS context_fts_delete AFTER DELETE ON context_chunks BEGIN
+            INSERT INTO context_fts(context_fts, rowid, content) VALUES('delete', OLD.rowid, OLD.content);
+        END;
+        
+        CREATE TRIGGER IF NOT EXISTS context_fts_update AFTER UPDATE ON context_chunks BEGIN
+            INSERT INTO context_fts(context_fts, rowid, content) VALUES('delete', OLD.rowid, OLD.content);
+            INSERT INTO context_fts(rowid, content) VALUES (NEW.rowid, NEW.content);
+        END;
         """
         
         var errMsg: UnsafeMutablePointer<CChar>?
@@ -85,6 +100,29 @@ actor ContextStore {
             let error = errMsg.map { String(cString: $0) } ?? "Unknown"
             sqlite3_free(errMsg)
             throw StoreError.sqlError(error)
+        }
+    }
+    
+    /// Rebuild FTS index from existing data
+    private func rebuildFTSIndex() throws {
+        // First clear FTS
+        let clearSQL = "DELETE FROM context_fts;"
+        var errMsg: UnsafeMutablePointer<CChar>?
+        sqlite3_exec(db, clearSQL, nil, nil, &errMsg)
+        
+        // Then repopulate from context_chunks
+        let rebuildSQL = """
+        INSERT INTO context_fts(rowid, content) 
+        SELECT rowid, content FROM context_chunks;
+        """
+        
+        if sqlite3_exec(db, rebuildSQL, nil, nil, &errMsg) != SQLITE_OK {
+            let error = errMsg.map { String(cString: $0) } ?? "Unknown"
+            sqlite3_free(errMsg)
+            print("⚠️ FTS rebuild warning: \(error)")
+            // Don't throw - FTS is supplementary
+        } else {
+            print("📦 FTS index rebuilt")
         }
     }
     

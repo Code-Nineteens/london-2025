@@ -37,6 +37,11 @@ final class ContextCollector: ObservableObject {
     private var recentHashes: Set<Int> = []
     private let maxHashCache = 1000
     
+    /// Content similarity cache for near-duplicate detection
+    private var recentContents: [String] = []
+    private let maxRecentContents = 100
+    private let similarityThreshold = 0.8
+    
     private init() {}
     
     // MARK: - Public API
@@ -72,17 +77,27 @@ final class ContextCollector: ObservableObject {
     /// Collect context from an accessibility event
     func collectFromEvent(_ event: AXEvent) async {
         guard isCollecting else { return }
-        guard let content = event.textContent, content.count >= 20 else { return }
+        guard let content = event.textContent, content.count >= 15 else { return }
         
         // Skip noise
         if isNoise(content) { return }
         
-        // Deduplicate
+        // Deduplicate - exact match
         let hash = content.hashValue
         if recentHashes.contains(hash) { return }
+        
+        // Deduplicate - similarity check
+        if isSimilarToRecent(content) { return }
+        
+        // Add to dedup caches
         recentHashes.insert(hash)
         if recentHashes.count > maxHashCache {
             recentHashes.removeFirst()
+        }
+        
+        recentContents.append(content)
+        if recentContents.count > maxRecentContents {
+            recentContents.removeFirst()
         }
         
         // Extract entities
@@ -318,6 +333,73 @@ final class ContextCollector: ObservableObject {
         }
         
         return nil
+    }
+    
+    /// Collect from UserActionMonitor event
+    func collectFromUserAction(action: UserActionMonitor.UserAction) async {
+        guard isCollecting else { return }
+        
+        let content = action.details
+        guard content.count >= 15 else { return }
+        
+        // Skip noise
+        if isNoise(content) { return }
+        
+        // Deduplicate
+        let hash = content.hashValue
+        if recentHashes.contains(hash) { return }
+        if isSimilarToRecent(content) { return }
+        
+        recentHashes.insert(hash)
+        recentContents.append(content)
+        if recentContents.count > maxRecentContents {
+            recentContents.removeFirst()
+        }
+        
+        let entities = extractEntities(from: content)
+        let topic = classifyTopic(content: content, appName: action.appName)
+        
+        let chunk = ContextChunk(
+            source: ContextSource.from(appName: action.appName),
+            content: content,
+            entities: entities,
+            topic: topic,
+            embedding: nil,
+            metadata: [
+                "app": action.appName,
+                "action_type": action.actionType.rawValue
+            ]
+        )
+        
+        pendingChunks.append(chunk)
+        chunksCollected += 1
+        scheduleBatchProcessing()
+        
+        print("🔍 Collected from \(action.appName): \(content.prefix(40))...")
+    }
+    
+    // MARK: - Similarity Detection
+    
+    /// Check if content is similar to recently seen content
+    private func isSimilarToRecent(_ content: String) -> Bool {
+        let contentWords = Set(content.lowercased().components(separatedBy: .whitespaces).filter { $0.count > 2 })
+        
+        for recent in recentContents.suffix(20) {
+            let recentWords = Set(recent.lowercased().components(separatedBy: .whitespaces).filter { $0.count > 2 })
+            
+            guard !contentWords.isEmpty && !recentWords.isEmpty else { continue }
+            
+            let intersection = contentWords.intersection(recentWords)
+            let union = contentWords.union(recentWords)
+            
+            let similarity = Double(intersection.count) / Double(union.count)
+            
+            if similarity >= similarityThreshold {
+                return true
+            }
+        }
+        
+        return false
     }
     
     // MARK: - Noise Filtering

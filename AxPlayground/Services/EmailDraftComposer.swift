@@ -68,6 +68,22 @@ final class EmailDraftComposer: ObservableObject {
             return nil
         }
         
+        // 4. Validate draft - reject if body is just the intent repeated
+        if isInvalidEmailBody(draft.emailBody, intent: intent) {
+            print("📧 ❌ Invalid email body - just repeated intent")
+            return EmailDraftPayload(
+                shouldComposeEmail: false,
+                inferredTask: draft.inferredTask,
+                confidence: 0.0,
+                valueAddedContextUsed: [],
+                emailSubject: draft.emailSubject,
+                emailBody: "",
+                recipient: draft.recipient,
+                missingInfo: "Brak wystarczającego kontekstu. Podaj: do kogo jest mail i o czym ma być.",
+                timestamp: Date()
+            )
+        }
+        
         print("📧 ✅ Draft composed!")
         print("📧 Subject: \(draft.emailSubject)")
         print("📧 Body preview: \(draft.emailBody.prefix(100))...")
@@ -75,6 +91,61 @@ final class EmailDraftComposer: ObservableObject {
         
         lastDraft = draft
         return draft
+    }
+    
+    /// Check if email body is invalid (just repeated intent or too generic)
+    private func isInvalidEmailBody(_ body: String, intent: String) -> Bool {
+        // Remove greetings and closings to get core content
+        let coreContent = body
+            .replacingOccurrences(of: "Dzień dobry,", with: "")
+            .replacingOccurrences(of: "Cześć,", with: "")
+            .replacingOccurrences(of: "Witam,", with: "")
+            .replacingOccurrences(of: "Pozdrawiam", with: "")
+            .replacingOccurrences(of: "Z poważaniem", with: "")
+            .replacingOccurrences(of: "Do usłyszenia", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        print("📧 VALIDATION - Core content: '\(coreContent)'")
+        
+        let coreLower = coreContent.lowercased()
+        let intentLower = intent.lowercased()
+        
+        // Check if core content is too similar to intent
+        if coreLower == intentLower {
+            print("📧 INVALID: exact match with intent")
+            return true
+        }
+        if coreLower.contains(intentLower) && coreContent.count < intent.count * 2 {
+            print("📧 INVALID: contains intent")
+            return true
+        }
+        
+        // Check for generic patterns that indicate LLM didn't write real content
+        let invalidPatterns = [
+            "send email", "send mail", "wyślij mail", "wyślij email",
+            "compose email", "open email", "write email", "draft email",
+            "automate", "process of sending",
+            "email to", "mail to", "napisz do", "mail do",
+            "[", "]", // placeholders
+            "dear client", "dear customer",
+            "@", // raw email addresses in body = not real content
+        ]
+        
+        for pattern in invalidPatterns {
+            if coreLower.contains(pattern) {
+                print("📧 INVALID: contains pattern '\(pattern)'")
+                return true
+            }
+        }
+        
+        // Check if content is too short (just greeting + closing without real content)
+        if coreContent.count < 20 {
+            print("📧 INVALID: too short (\(coreContent.count) chars)")
+            return true
+        }
+        
+        print("📧 VALID: passed all checks")
+        return false
     }
     
     /// Quick check if text indicates email intent
@@ -100,39 +171,55 @@ final class EmailDraftComposer: ObservableObject {
         contextString: String,
         systemState: SystemState
     ) -> String {
-        return """
-        TASK: Compose an email draft based on the user's intent and available context.
+        let hasContext = !contextString.isEmpty && contextString != "AVAILABLE CONTEXT:\n(No relevant context found)\n"
         
-        USER INTENT: \(intent)
+        return """
+        TASK: Compose a real, sendable email based on the user's intent and context.
+        
+        USER INTENT: "\(intent)"
         
         USER WRITING STYLE:
-        - Language: \(userStyle.preferredLanguage) (WRITE IN THIS LANGUAGE)
+        - Language: \(userStyle.preferredLanguage) (ALWAYS write in this language!)
         - Formality: \(userStyle.formalityLevel)
-        - Typical greetings: \(userStyle.greetings.joined(separator: ", "))
-        - Typical closings: \(userStyle.closings.joined(separator: ", "))
-        - Common phrases: \(userStyle.commonPhrases.joined(separator: ", "))
+        - Greetings: \(userStyle.greetings.joined(separator: ", "))
+        - Closings: \(userStyle.closings.joined(separator: ", "))
         
         CURRENT APP: \(systemState.activeApp)
         
         \(contextString)
         
-        INSTRUCTIONS:
-        1. Analyze the intent to understand WHO the email is for and WHAT it should be about
-        2. Use the CONTEXT above to find relevant details (names, topics, deadlines, previous conversations)
-        3. Write a REAL email in \(userStyle.preferredLanguage == "pl" ? "Polish" : "English") - not a description of what to write
-        4. Match the user's style: \(userStyle.formalityLevel), using their typical phrases
-        5. If context mentions specific things (meetings, projects, deadlines), reference them naturally
-        6. Keep it concise but complete - ready to send
+        CRITICAL RULES:
+        1. NEVER repeat the intent literally in the email body
+        2. If the intent is vague (e.g., "send email to client"), you MUST:
+           - Look for specific client names, projects, or topics in the CONTEXT
+           - If found: write email about that specific topic
+           - If NOT found: set should_compose_email=false and explain what info is missing
+        3. Write a REAL email that someone could actually send - professional, specific content
+        4. Use context details naturally (names, dates, projects, previous messages)
+        5. NEVER write placeholder text like "[nazwa firmy]" or "[temat]"
         
-        RESPOND WITH VALID JSON ONLY:
+        \(hasContext ? """
+        CONTEXT ANALYSIS:
+        - Review the context chunks above carefully
+        - Find: recipient names, email addresses, project names, recent topics, deadlines
+        - Use these details to write a specific, relevant email
+        """ : """
+        NO CONTEXT AVAILABLE:
+        - Cannot compose a specific email without knowing WHO and WHAT
+        - Set should_compose_email=false
+        - Explain what information is needed (recipient, topic, purpose)
+        """)
+        
+        RESPOND WITH VALID JSON:
         {
-            "should_compose_email": true,
-            "inferred_task": "one-line description of what this email is about",
-            "confidence": 0.8,
-            "value_added_context_used": ["list what context you used"],
-            "email_subject": "subject line in \(userStyle.preferredLanguage == "pl" ? "Polish" : "English")",
-            "email_body": "full email text with greeting and closing - ACTUAL EMAIL TEXT, NOT A DESCRIPTION",
-            "recipient": "recipient name if found, or null"
+            "should_compose_email": boolean (false if intent is too vague and no context helps),
+            "inferred_task": "what this email is about based on context",
+            "confidence": 0.0-1.0,
+            "value_added_context_used": ["specific context items used"],
+            "email_subject": "specific subject (not generic)",
+            "email_body": "full email with greeting/closing - REAL TEXT, NOT DESCRIPTION",
+            "recipient": "actual name/email from context, or null",
+            "missing_info": "what's needed if should_compose_email is false"
         }
         """
     }
@@ -146,15 +233,27 @@ final class EmailDraftComposer: ObservableObject {
         }
         
         let systemPrompt = """
-        You are an email composition assistant. You compose professional, concise emails 
-        that match the user's writing style. You respond ONLY with valid JSON.
+        You are an email composition assistant.
         
-        Quality principles:
-        - Intent-first: understand what the user wants to communicate
-        - Style-accurate: match user's tone, phrases, and formality
-        - Value-added context only: include external info only if it improves the email
-        - Concise: no fluff, get to the point
-        - Authentic: sound like the user, not a robot
+        ABSOLUTE RULES - NEVER BREAK THESE:
+        1. NEVER copy/paste the user's command into email_body
+        2. NEVER put email addresses in the email body text
+        3. If you don't know WHAT to write about → should_compose_email=false
+        4. email_body must be a REAL message someone would send
+        
+        EXAMPLES OF INVALID email_body (NEVER DO THIS):
+        - "Open email app and compose email to X"
+        - "send email to client"
+        - "wyślij mail do X"
+        - Any text containing @ symbol
+        
+        EXAMPLE OF VALID email_body:
+        "Dzień dobry,\\n\\nChciałbym umówić się na spotkanie w sprawie projektu.\\n\\nPozdrawiam"
+        
+        If the user's intent is vague (no specific topic/content), return:
+        {"should_compose_email": false, "missing_info": "Specify what the email should be about"}
+        
+        Respond ONLY with valid JSON.
         """
         
         do {
@@ -204,6 +303,7 @@ final class EmailDraftComposer: ObservableObject {
                     emailSubject: draft.emailSubject,
                     emailBody: draft.emailBody,
                     recipient: draft.recipient,
+                    missingInfo: draft.missingInfo,
                     timestamp: Date()
                 )
             }

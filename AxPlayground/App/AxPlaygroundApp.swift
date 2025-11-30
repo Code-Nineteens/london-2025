@@ -14,6 +14,42 @@ struct AxPlaygroundApp: App {
         DevinHelper.loadEnv()
         setupNotificationObserver()
     }
+    
+    /// Load .env file and return dictionary of key-value pairs
+    private func loadEnvFile() -> [String: String] {
+        var result: [String: String] = [:]
+        
+        // Try project root .env
+        let projectEnvPath = "/Users/filipwnek/Projects/london-2025/.env"
+        
+        guard let contents = try? String(contentsOfFile: projectEnvPath, encoding: .utf8) else {
+            print("⚠️ Could not read .env file at \(projectEnvPath)")
+            return result
+        }
+        
+        let lines = contents.components(separatedBy: .newlines)
+        for line in lines {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            
+            // Skip comments and empty lines
+            guard !trimmed.isEmpty, !trimmed.hasPrefix("#") else { continue }
+            
+            // Parse KEY=VALUE
+            let parts = trimmed.components(separatedBy: "=")
+            guard parts.count >= 2 else { continue }
+            
+            let key = parts[0].trimmingCharacters(in: .whitespaces)
+            let value = parts.dropFirst().joined(separator: "=").trimmingCharacters(in: .whitespaces)
+            
+            // Remove quotes if present
+            let cleanValue = value.trimmingCharacters(in: CharacterSet(charactersIn: "\"'"))
+            
+            result[key] = cleanValue
+            print("📄 Loaded from .env: \(key)=\(String(cleanValue.prefix(10)))...")
+        }
+        
+        return result
+    }
   
     @StateObject private var textChangesOverlayController = TextChangesOverlayController.shared
     @StateObject private var accessibilityMonitor = AccessibilityMonitor()
@@ -82,18 +118,27 @@ struct AxPlaygroundApp: App {
         // Auto-start observing
         NotificationCenterObserver.shared.startObserving()
         
+        // Load .env file
+        let envVars = loadEnvFile()
+        
         // Initialize services
         Task {
             // Configure Anthropic API
-            if let envKey = ProcessInfo.processInfo.environment["ANTHROPIC_API_KEY"] {
+            let anthropicKey = ProcessInfo.processInfo.environment["ANTHROPIC_API_KEY"] ?? envVars["ANTHROPIC_API_KEY"]
+            if let key = anthropicKey, !key.isEmpty {
                 print("🔑 Found Anthropic API key")
-                await AutomationSuggestionService.shared.configureAPIKey(envKey)
+                await AutomationSuggestionService.shared.configureAPIKey(key)
+            } else {
+                print("⚠️ No Anthropic API key found")
             }
             
             // Configure OpenAI API (for embeddings)
-            if let openAIKey = ProcessInfo.processInfo.environment["OPENAI_API_KEY"] {
+            let openAIKey = ProcessInfo.processInfo.environment["OPENAI_API_KEY"] ?? envVars["OPENAI_API_KEY"]
+            if let key = openAIKey, !key.isEmpty {
                 print("🔑 Found OpenAI API key")
-                await OpenAIEmbeddingService.shared.setAPIKey(openAIKey)
+                await OpenAIEmbeddingService.shared.setAPIKey(key)
+            } else {
+                print("⚠️ No OpenAI API key found - embeddings disabled")
             }
             
             // Start context collection
@@ -103,7 +148,48 @@ struct AxPlaygroundApp: App {
             // Enable AI suggestions
             AutomationSuggestionService.shared.setEnabled(true)
             print("🤖 AI Suggestions enabled")
+            
+            // Start monitoring user actions and collect context
+            startUserActionMonitoring()
+            
+            // Start continuous screen text monitoring
+            startScreenTextMonitoring()
         }
+    }
+    
+    private func startUserActionMonitoring() {
+        UserActionMonitor.shared.startMonitoring { action in
+            Task {
+                // Collect to context store
+                await ContextCollector.shared.collectFromUserAction(action: action)
+                
+                // Also send to AI for intent analysis (if it's text input)
+                if action.actionType == .textEntered {
+                    await AutomationSuggestionService.shared.processAction(
+                        actionType: action.actionType.rawValue,
+                        appName: action.appName,
+                        details: action.details
+                    )
+                }
+            }
+        }
+        print("👁️ User action monitoring started")
+    }
+    
+    private func startScreenTextMonitoring() {
+        ScreenTextMonitor.shared.startMonitoring(interval: 1.0) { change in
+            Task {
+                // Convert to AXEvent and collect
+                let event = AXEvent(
+                    actionType: "screen_text_\(change.changeType)",
+                    appName: change.appName,
+                    elementRole: nil,
+                    textContent: change.newText
+                )
+                await ContextCollector.shared.collectFromEvent(event)
+            }
+        }
+        print("👁️ Screen text monitoring started (1s interval)")
     }
 }
 
@@ -361,6 +447,12 @@ struct MenuBarView: View {
                 MailHelper.openMailApp()
             }
             
+            MenuItemButton(title: "View Context Stats", systemImage: "cylinder.fill") {
+                Task {
+                    await showContextStats()
+                }
+            }
+            
             MenuItemButton(title: "Open Dashboard", systemImage: "macwindow") {
                 openWindow(id: "dashboard")
                 NSApp.activate(ignoringOtherApps: true)
@@ -382,6 +474,24 @@ struct MenuBarView: View {
                 NSApplication.shared.terminate(nil)
             }
         }
+    }
+    
+    private func showContextStats() async {
+        let count = (try? await ContextStore.shared.count()) ?? 0
+        let recent = (try? await ContextStore.shared.getRecent(source: nil, limit: 5)) ?? []
+        
+        var message = "Chunks: \(count)\n\n"
+        message += "Recent:\n"
+        for chunk in recent {
+            let preview = String(chunk.content.prefix(40))
+            message += "• [\(chunk.source.rawValue)] \(preview)...\n"
+        }
+        
+        NotificationManager.shared.show(
+            title: "📦 Context Store",
+            message: message,
+            icon: "cylinder.fill"
+        )
     }
 
     // MARK: - Actions

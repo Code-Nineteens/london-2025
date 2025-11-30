@@ -8,7 +8,7 @@
 import Foundation
 
 /// Structured output for email draft composition
-struct EmailDraftPayload: Codable, Sendable {
+struct EmailDraftPayload: Sendable {
     /// Whether an email should be composed
     let shouldComposeEmail: Bool
     
@@ -30,6 +30,9 @@ struct EmailDraftPayload: Codable, Sendable {
     /// Recipient if detected
     let recipient: String?
     
+    /// Missing info if cannot compose (e.g., "need recipient name and email topic")
+    let missingInfo: String?
+    
     /// Timestamp when generated
     let timestamp: Date
     
@@ -43,12 +46,18 @@ struct EmailDraftPayload: Codable, Sendable {
         case emailSubject = "email_subject"
         case emailBody = "email_body"
         case recipient
-        case timestamp
+        case missingInfo = "missing_info"
     }
     
     /// Check if draft is actionable
     var isActionable: Bool {
         shouldComposeEmail && confidence >= 0.7
+    }
+    
+    /// Human-readable reason why email cannot be composed
+    var whyNotComposable: String? {
+        guard !shouldComposeEmail else { return nil }
+        return missingInfo ?? "Brak wystarczających informacji do napisania maila"
     }
     
     /// Empty/nil draft for when no email should be composed
@@ -61,8 +70,29 @@ struct EmailDraftPayload: Codable, Sendable {
             emailSubject: "",
             emailBody: "",
             recipient: nil,
+            missingInfo: nil,
             timestamp: Date()
         )
+    }
+}
+
+// MARK: - Custom Decodable (timestamp not from JSON)
+
+extension EmailDraftPayload: Decodable {
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        
+        shouldComposeEmail = try container.decode(Bool.self, forKey: .shouldComposeEmail)
+        inferredTask = try container.decodeIfPresent(String.self, forKey: .inferredTask) ?? ""
+        confidence = try container.decodeIfPresent(Double.self, forKey: .confidence) ?? 0.0
+        valueAddedContextUsed = try container.decodeIfPresent([String].self, forKey: .valueAddedContextUsed) ?? []
+        emailSubject = try container.decodeIfPresent(String.self, forKey: .emailSubject) ?? ""
+        emailBody = try container.decodeIfPresent(String.self, forKey: .emailBody) ?? ""
+        recipient = try container.decodeIfPresent(String.self, forKey: .recipient)
+        missingInfo = try container.decodeIfPresent(String.self, forKey: .missingInfo)
+        
+        // Timestamp is always set to now (not from JSON)
+        timestamp = Date()
     }
 }
 

@@ -215,9 +215,15 @@ final class AutomationSuggestionService: ObservableObject {
                     body: draft.emailBody
                 )
             } else {
-                // Fallback to simple draft
-                print("📧 Draft not actionable, using simple fallback")
-                openSimpleEmailDraft(for: payload)
+                // Show notification about why email cannot be composed
+                let reason = draft.whyNotComposable ?? "Niewystarczające informacje"
+                print("📧 Cannot compose email: \(reason)")
+                
+                NotificationManager.shared.show(
+                    title: "❌ Nie mogę napisać maila",
+                    message: reason,
+                    icon: "envelope.badge.exclamationmark"
+                )
             }
         } else {
             // Fallback if LLM fails
