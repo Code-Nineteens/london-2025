@@ -317,7 +317,11 @@ final class UserActionMonitor: ObservableObject {
     }
     
     private func reportAction(_ action: UserAction) {
-        if action.appName == "ChironaOS" { return }
+        // Skip own app events (by name or bundle ID for robustness)
+        if let myBundleId = Bundle.main.bundleIdentifier,
+           action.appName == "ChironaOS" || action.appName == myBundleId {
+            return
+        }
         
         let trimmedDetails = action.details.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmedDetails.isEmpty { return }
