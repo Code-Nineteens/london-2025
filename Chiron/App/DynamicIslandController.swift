@@ -21,7 +21,7 @@ final class DynamicIslandController: ObservableObject {
     @Published var isExpanded = false
     @Published var isVisible = true
 
-    private var islandWindow: NSWindow?
+    private var islandWindow: IslandWindow?
 
     // Window dimensions (needs to fit expanded state)
     private let windowWidth: CGFloat = IslandDimensions.expandedWidth + (IslandDimensions.expandedInvertedRadius * 2) + 20
@@ -58,18 +58,51 @@ final class DynamicIslandController: ObservableObject {
 
     func expand() {
         guard !isExpanded else { return }
-        isExpanded = true
-        isVisible = true
+        // Expand window frame FIRST, before triggering animation
+        updateWindowFrame(expanded: true)
+        // Small delay to let window resize complete before animation
+        DispatchQueue.main.async { [weak self] in
+            self?.isExpanded = true
+            self?.isVisible = true
+        }
     }
 
     func collapse() {
         guard isExpanded else { return }
         isVisible = false
 
-        // Wait for animation then reset state
+        // Wait for animation then reset state and resize window
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
             self?.isExpanded = false
+            self?.updateWindowFrame(expanded: false)
         }
+    }
+
+    private func updateWindowFrame(expanded: Bool) {
+        guard let window = islandWindow, let screen = NSScreen.main else { return }
+
+        let width: CGFloat
+        let height: CGFloat
+
+        if expanded {
+            width = windowWidth
+            height = windowHeight
+        } else {
+            // Just enough for the idle notch
+            let idleTotalWidth = IslandDimensions.idleWidth + (IslandDimensions.idleInvertedRadius * 2) + 20
+            width = idleTotalWidth
+            height = IslandDimensions.idleHeight + 10
+        }
+
+        let frame = NSRect(
+            x: screen.frame.midX - width / 2,
+            y: screen.frame.maxY - height,
+            width: width,
+            height: height
+        )
+
+        window.setFrame(frame, display: true, animate: false)
+        window.contentView?.frame = NSRect(x: 0, y: 0, width: width, height: height)
     }
 
     // MARK: - Activity
@@ -89,20 +122,25 @@ final class DynamicIslandController: ObservableObject {
     private func createIslandWindow() {
         guard let screen = NSScreen.main else { return }
 
+        // Start with idle size - only covers the notch area
+        let idleTotalWidth = IslandDimensions.idleWidth + (IslandDimensions.idleInvertedRadius * 2) + 20
+        let idleWindowHeight = IslandDimensions.idleHeight + 10
+
         // Position at top center, flush to top of screen
         let frame = NSRect(
-            x: screen.frame.midX - windowWidth / 2,
-            y: screen.frame.maxY - windowHeight,
-            width: windowWidth,
-            height: windowHeight
+            x: screen.frame.midX - idleTotalWidth / 2,
+            y: screen.frame.maxY - idleWindowHeight,
+            width: idleTotalWidth,
+            height: idleWindowHeight
         )
 
-        let window = NSWindow(
+        let window = IslandWindow(
             contentRect: frame,
             styleMask: [.borderless],
             backing: .buffered,
             defer: false
         )
+        window.controller = self
 
         window.level = .screenSaver
         window.isOpaque = false
@@ -110,11 +148,11 @@ final class DynamicIslandController: ObservableObject {
         window.hasShadow = false
         window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
         window.isReleasedWhenClosed = false
-        window.ignoresMouseEvents = false
+        window.hidesOnDeactivate = false
 
         let contentView = UnifiedIslandView(controller: self)
         let hostingView = NSHostingView(rootView: contentView)
-        hostingView.frame = NSRect(x: 0, y: 0, width: windowWidth, height: windowHeight)
+        hostingView.frame = NSRect(x: 0, y: 0, width: idleTotalWidth, height: idleWindowHeight)
         window.contentView = hostingView
 
         window.orderFrontRegardless()
@@ -140,6 +178,27 @@ final class DynamicIslandController: ObservableObject {
         }
     }
 }
+
+// MARK: - Custom Window for Click-Through
+
+class IslandWindow: NSPanel {
+    weak var controller: DynamicIslandController?
+
+    override init(contentRect: NSRect, styleMask style: NSWindow.StyleMask, backing backingStoreType: NSWindow.BackingStoreType, defer flag: Bool) {
+        super.init(contentRect: contentRect, styleMask: [.borderless, .nonactivatingPanel], backing: backingStoreType, defer: flag)
+        self.isFloatingPanel = true
+        self.becomesKeyOnlyIfNeeded = true
+    }
+
+    override var canBecomeKey: Bool {
+        return controller?.isExpanded ?? false
+    }
+
+    override var canBecomeMain: Bool {
+        return false
+    }
+}
+
 
 // MARK: - Shared Island Dimensions
 
@@ -196,6 +255,17 @@ struct UnifiedIslandView: View {
             )
             .fill(Color.black)
             .frame(width: currentWidth + (currentInvertedRadius * 2), height: currentHeight)
+            .contentShape(
+                DynamicIslandShape(
+                    bottomCornerRadius: currentCornerRadius,
+                    topInvertedRadius: currentInvertedRadius
+                )
+            )
+            .onTapGesture {
+                if !controller.isExpanded {
+                    controller.expand()
+                }
+            }
 
             // Idle state: Orb on the right
             if animationProgress < 1.0 {
@@ -207,6 +277,7 @@ struct UnifiedIslandView: View {
                 .padding(.trailing, currentInvertedRadius + 6)
                 .frame(width: currentWidth + (currentInvertedRadius * 2), height: IslandDimensions.idleHeight)
                 .opacity(orbOpacity)
+                .allowsHitTesting(false)
             }
 
             // Expanded state: Menu content
@@ -216,17 +287,7 @@ struct UnifiedIslandView: View {
                     .opacity(contentOpacity)
             }
         }
-        .frame(
-            width: IslandDimensions.expandedWidth + (IslandDimensions.expandedInvertedRadius * 2),
-            height: IslandDimensions.expandedHeight,
-            alignment: .top
-        )
-        .contentShape(Rectangle())
-        .onTapGesture {
-            if !controller.isExpanded {
-                controller.expand()
-            }
-        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .onChange(of: controller.isExpanded) { _, expanded in
             if expanded {
                 withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
@@ -245,7 +306,7 @@ struct UnifiedIslandView: View {
                     contentOpacity = 0.0
                 }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                    withAnimation(.easeOut(duration: 0.25)) {
                         animationProgress = 0.0
                     }
                 }
