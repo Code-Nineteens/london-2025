@@ -247,7 +247,7 @@ final class ScreenTextMonitor: ObservableObject {
     private func reportChange(_ change: TextChange) {
         // Ignore own bundle ID
         if let myBundleId = Bundle.main.bundleIdentifier,
-           change.appName.contains("Chiron") || change.appName == myBundleId {
+           change.appName.contains("ChironaAI") || change.appName == myBundleId {
             print("📡 reportChange: SKIP - own app")
             return
         }
