@@ -65,12 +65,12 @@ struct GlassNotificationView: View {
                 VStack(alignment: .leading, spacing: AXSpacing.xxs) {
                     Text(title)
                         .font(AXTypography.headlineSmall)
-                        .foregroundStyle(.axTextPrimary)
+                        .foregroundColor(Color.axTextPrimary)
                     
                     if let message {
                         Text(message)
                             .font(AXTypography.bodySmall)
-                            .foregroundStyle(.axTextSecondary)
+                            .foregroundColor(Color.axTextSecondary)
                             .lineLimit(3)
                             .fixedSize(horizontal: false, vertical: true)
                     }
@@ -85,7 +85,7 @@ struct GlassNotificationView: View {
                 } label: {
                     Image(systemName: "xmark")
                         .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(.axTextTertiary)
+                        .foregroundColor(Color.axTextTertiary)
                         .frame(width: 24, height: 24)
                         .background(
                             Circle()
@@ -132,7 +132,7 @@ struct GlassNotificationView: View {
                             Text("Queue")
                                 .font(AXTypography.labelMedium)
                         }
-                        .foregroundStyle(.axTextPrimary)
+                        .foregroundColor(Color.axTextPrimary)
                         .padding(.horizontal, AXSpacing.md)
                         .padding(.vertical, AXSpacing.sm)
                         .background(

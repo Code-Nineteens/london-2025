@@ -124,11 +124,11 @@ struct ContentView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text("AxPlayground")
                     .font(AXTypography.headlineMedium)
-                    .foregroundStyle(.axTextPrimary)
+                    .foregroundColor(Color.axTextPrimary)
                 
                 Text("AI Assistant")
                     .font(AXTypography.labelSmall)
-                    .foregroundStyle(.axTextTertiary)
+                    .foregroundColor(Color.axTextTertiary)
             }
             
             Spacer()
@@ -141,7 +141,7 @@ struct ContentView: View {
         VStack(alignment: .leading, spacing: AXSpacing.md) {
             Text("STATUS")
                 .font(AXTypography.labelSmall)
-                .foregroundStyle(.axTextTertiary)
+                .foregroundColor(Color.axTextTertiary)
                 .tracking(1.2)
             
             // Monitoring Status Card
@@ -153,17 +153,17 @@ struct ContentView: View {
                     
                     Image(systemName: monitor.isMonitoring ? "eye.fill" : "eye.slash.fill")
                         .font(.system(size: 18))
-                        .foregroundStyle(monitor.isMonitoring ? .axSuccess : .axTextTertiary)
+                        .foregroundColor(monitor.isMonitoring ? Color.axSuccess : Color.axTextTertiary)
                 }
                 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(monitor.isMonitoring ? "Active" : "Paused")
                         .font(AXTypography.headlineSmall)
-                        .foregroundStyle(.axTextPrimary)
+                        .foregroundColor(Color.axTextPrimary)
                     
                     Text("Accessibility Monitor")
                         .font(AXTypography.labelSmall)
-                        .foregroundStyle(.axTextTertiary)
+                        .foregroundColor(Color.axTextTertiary)
                 }
                 
                 Spacer()
@@ -180,11 +180,11 @@ struct ContentView: View {
             HStack(spacing: AXSpacing.sm) {
                 Image(systemName: monitor.hasPermission ? "checkmark.shield.fill" : "exclamationmark.shield.fill")
                     .font(.system(size: 14))
-                    .foregroundStyle(monitor.hasPermission ? .axSuccess : .axWarning)
+                    .foregroundColor(monitor.hasPermission ? Color.axSuccess : Color.axWarning)
                 
                 Text(monitor.hasPermission ? "Permissions granted" : "Permissions required")
                     .font(AXTypography.labelMedium)
-                    .foregroundStyle(.axTextSecondary)
+                    .foregroundColor(Color.axTextSecondary)
                 
                 Spacer()
             }
@@ -208,7 +208,7 @@ struct ContentView: View {
         VStack(alignment: .leading, spacing: AXSpacing.md) {
             Text("CONTROLS")
                 .font(AXTypography.labelSmall)
-                .foregroundStyle(.axTextTertiary)
+                .foregroundColor(Color.axTextTertiary)
                 .tracking(1.2)
             
             HStack(spacing: AXSpacing.sm) {
@@ -259,7 +259,7 @@ struct ContentView: View {
         VStack(alignment: .leading, spacing: AXSpacing.md) {
             Text("FILTER")
                 .font(AXTypography.labelSmall)
-                .foregroundStyle(.axTextTertiary)
+                .foregroundColor(Color.axTextTertiary)
                 .tracking(1.2)
             
             Menu {
@@ -278,17 +278,17 @@ struct ContentView: View {
                 HStack {
                     Image(systemName: "line.3.horizontal.decrease.circle")
                         .font(.system(size: 14))
-                        .foregroundStyle(.axTextSecondary)
+                        .foregroundColor(Color.axTextSecondary)
                     
                     Text(selectedApp ?? "All Apps")
                         .font(AXTypography.bodyMedium)
-                        .foregroundStyle(.axTextPrimary)
+                        .foregroundColor(Color.axTextPrimary)
                     
                     Spacer()
                     
                     Image(systemName: "chevron.up.chevron.down")
                         .font(.system(size: 10))
-                        .foregroundStyle(.axTextTertiary)
+                        .foregroundColor(Color.axTextTertiary)
                 }
                 .padding(AXSpacing.md)
                 .axCard(elevated: true)
@@ -303,11 +303,11 @@ struct ContentView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text("\(monitor.events.count)")
                     .font(AXTypography.displayMedium)
-                    .foregroundStyle(.axTextPrimary)
+                    .foregroundColor(Color.axTextPrimary)
                 
                 Text("events captured")
                     .font(AXTypography.labelSmall)
-                    .foregroundStyle(.axTextTertiary)
+                    .foregroundColor(Color.axTextTertiary)
             }
             
             Spacer()
@@ -348,17 +348,17 @@ struct ContentView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Event Stream")
                     .font(AXTypography.headlineLarge)
-                    .foregroundStyle(.axTextPrimary)
+                    .foregroundColor(Color.axTextPrimary)
                 
                 if let app = selectedApp {
                     HStack(spacing: AXSpacing.xs) {
                         Text("Filtered by:")
                             .font(AXTypography.labelSmall)
-                            .foregroundStyle(.axTextTertiary)
+                            .foregroundColor(Color.axTextTertiary)
                         
                         Text(app)
                             .font(AXTypography.labelSmall)
-                            .foregroundStyle(.axPrimary)
+                            .foregroundColor(Color.axPrimary)
                             .padding(.horizontal, AXSpacing.sm)
                             .padding(.vertical, AXSpacing.xxs)
                             .background(
@@ -381,7 +381,7 @@ struct ContentView: View {
                     
                     Text("LIVE")
                         .font(AXTypography.labelSmall)
-                        .foregroundStyle(.axTextSecondary)
+                        .foregroundColor(Color.axTextSecondary)
                         .tracking(1)
                 }
                 .padding(.horizontal, AXSpacing.md)
@@ -406,18 +406,18 @@ struct ContentView: View {
                 
                 Image(systemName: "waveform.path.ecg")
                     .font(.system(size: 32))
-                    .foregroundStyle(.axTextTertiary)
+                    .foregroundColor(Color.axTextTertiary)
             }
             
             VStack(spacing: AXSpacing.sm) {
                 Text(monitor.events.isEmpty ? "No events yet" : "No events for selected app")
                     .font(AXTypography.headlineMedium)
-                    .foregroundStyle(.axTextSecondary)
+                    .foregroundColor(Color.axTextSecondary)
                 
                 if monitor.events.isEmpty {
                     Text("Start monitoring and interact with any app")
                         .font(AXTypography.bodySmall)
-                        .foregroundStyle(.axTextTertiary)
+                        .foregroundColor(Color.axTextTertiary)
                 }
             }
         }
@@ -486,19 +486,19 @@ struct AppSectionHeaderNew: View {
                     .overlay(
                         Text(String(appName.prefix(1)))
                             .font(AXTypography.labelSmall)
-                            .foregroundStyle(.axPrimary)
+                            .foregroundColor(Color.axPrimary)
                     )
                 
                 Text(appName)
                     .font(AXTypography.headlineSmall)
-                    .foregroundStyle(.axTextPrimary)
+                    .foregroundColor(Color.axTextPrimary)
             }
             
             Spacer()
             
             Text("\(count)")
                 .font(AXTypography.mono)
-                .foregroundStyle(.axTextTertiary)
+                .foregroundColor(Color.axTextTertiary)
                 .padding(.horizontal, AXSpacing.sm)
                 .padding(.vertical, AXSpacing.xxs)
                 .background(
@@ -543,7 +543,7 @@ struct EventRowNew: View {
                 HStack {
                     Text(event.role ?? "Unknown")
                         .font(AXTypography.mono)
-                        .foregroundStyle(.axPrimary)
+                        .foregroundColor(Color.axPrimary)
                         .padding(.horizontal, AXSpacing.sm)
                         .padding(.vertical, AXSpacing.xxs)
                         .background(
@@ -555,13 +555,13 @@ struct EventRowNew: View {
                     
                     Text(timeString)
                         .font(AXTypography.monoSmall)
-                        .foregroundStyle(.axTextTertiary)
+                        .foregroundColor(Color.axTextTertiary)
                 }
                 
                 if let title = event.title, !title.isEmpty {
                     Text(title)
                         .font(AXTypography.bodyMedium)
-                        .foregroundStyle(.axTextSecondary)
+                        .foregroundColor(Color.axTextSecondary)
                         .lineLimit(2)
                 }
                 
@@ -569,12 +569,12 @@ struct EventRowNew: View {
                 HStack(spacing: AXSpacing.md) {
                     Label("(\(Int(event.clickLocation.x)), \(Int(event.clickLocation.y)))", systemImage: "cursorarrow.click")
                         .font(AXTypography.labelSmall)
-                        .foregroundStyle(.axTextTertiary)
+                        .foregroundColor(Color.axTextTertiary)
                     
                     if let size = event.size {
                         Label("\(Int(size.width))×\(Int(size.height))", systemImage: "rectangle.dashed")
                             .font(AXTypography.labelSmall)
-                            .foregroundStyle(.axTextTertiary)
+                            .foregroundColor(Color.axTextTertiary)
                     }
                 }
             }

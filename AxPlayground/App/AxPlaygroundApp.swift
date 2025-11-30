@@ -232,11 +232,11 @@ struct MenuBarViewNew: View {
             VStack(alignment: .leading, spacing: 0) {
                 Text("AxPlayground")
                     .font(AXTypography.headlineSmall)
-                    .foregroundStyle(.axTextPrimary)
+                    .foregroundColor(Color.axTextPrimary)
                 
                 Text("AI Assistant")
                     .font(AXTypography.labelSmall)
-                    .foregroundStyle(.axTextTertiary)
+                    .foregroundColor(Color.axTextTertiary)
             }
             
             Spacer()
@@ -250,7 +250,7 @@ struct MenuBarViewNew: View {
                 
                 Text(automationService.isEnabled ? "Active" : "Idle")
                     .font(AXTypography.labelSmall)
-                    .foregroundStyle(.axTextSecondary)
+                    .foregroundColor(Color.axTextSecondary)
             }
             .padding(.horizontal, AXSpacing.sm)
             .padding(.vertical, AXSpacing.xs)
@@ -373,17 +373,17 @@ struct MenuBarViewNew: View {
                             
                             Image(systemName: "wand.and.stars")
                                 .font(.system(size: 16))
-                                .foregroundStyle(automationService.isEnabled ? .axPrimary : .axTextTertiary)
+                                .foregroundColor(automationService.isEnabled ? Color.axPrimary : Color.axTextTertiary)
                         }
                         
                         VStack(alignment: .leading, spacing: 2) {
                             Text("AI Suggestions")
                                 .font(AXTypography.bodyMedium)
-                                .foregroundStyle(.axTextPrimary)
+                                .foregroundColor(Color.axTextPrimary)
                             
                             Text(automationService.isEnabled ? "Analyzing actions" : "Disabled")
                                 .font(AXTypography.labelSmall)
-                                .foregroundStyle(.axTextTertiary)
+                                .foregroundColor(Color.axTextTertiary)
                         }
                     }
                     
@@ -423,7 +423,7 @@ struct MenuBarViewNew: View {
                 if automationService.isEnabled {
                     Text(automationService.statistics)
                         .font(AXTypography.monoSmall)
-                        .foregroundStyle(.axTextTertiary)
+                        .foregroundColor(Color.axTextTertiary)
                         .padding(.horizontal, AXSpacing.sm)
                 }
             }
@@ -443,7 +443,7 @@ struct MenuBarViewNew: View {
                 
                 Text("\(taskItems.count)")
                     .font(AXTypography.mono)
-                    .foregroundStyle(.axTextTertiary)
+                    .foregroundColor(Color.axTextTertiary)
                     .padding(.horizontal, AXSpacing.sm)
                     .padding(.vertical, AXSpacing.xxs)
                     .background(
@@ -471,7 +471,7 @@ struct MenuBarViewNew: View {
                             Text("Show \(taskItems.count - maxVisibleTasks) more")
                                 .font(AXTypography.labelMedium)
                         }
-                        .foregroundStyle(.axTextSecondary)
+                        .foregroundColor(Color.axTextSecondary)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, AXSpacing.sm)
                     }
@@ -519,7 +519,7 @@ struct MenuBarViewNew: View {
                     Text("Quit")
                         .font(AXTypography.labelMedium)
                 }
-                .foregroundStyle(.axTextSecondary)
+                .foregroundColor(Color.axTextSecondary)
             }
             .buttonStyle(.plain)
             
@@ -527,7 +527,7 @@ struct MenuBarViewNew: View {
             
             Text("v1.0")
                 .font(AXTypography.labelSmall)
-                .foregroundStyle(.axTextTertiary)
+                .foregroundColor(Color.axTextTertiary)
         }
         .padding(AXSpacing.md)
     }
@@ -608,7 +608,7 @@ struct StatusPill: View {
             Text(label)
                 .font(AXTypography.labelSmall)
         }
-        .foregroundStyle(isActive ? .axTextPrimary : .axTextTertiary)
+        .foregroundColor(isActive ? Color.axTextPrimary : Color.axTextTertiary)
         .padding(.horizontal, AXSpacing.sm)
         .padding(.vertical, AXSpacing.xs)
         .frame(maxWidth: .infinity)
@@ -629,7 +629,7 @@ struct SectionHeader: View {
     var body: some View {
         Text(title)
             .font(AXTypography.labelSmall)
-            .foregroundStyle(.axTextTertiary)
+            .foregroundColor(Color.axTextTertiary)
             .tracking(1)
     }
 }
@@ -647,12 +647,12 @@ struct MenuToggleRow: View {
             HStack(spacing: AXSpacing.md) {
                 Image(systemName: icon)
                     .font(.system(size: 13))
-                    .foregroundStyle(isOn ? .axPrimary : .axTextTertiary)
+                    .foregroundColor(isOn ? Color.axPrimary : Color.axTextTertiary)
                     .frame(width: 20)
                 
                 Text(title)
                     .font(AXTypography.bodyMedium)
-                    .foregroundStyle(.axTextPrimary)
+                    .foregroundColor(Color.axTextPrimary)
                 
                 Spacer()
                 
@@ -686,18 +686,18 @@ struct MenuActionRow: View {
             HStack(spacing: AXSpacing.md) {
                 Image(systemName: icon)
                     .font(.system(size: 13))
-                    .foregroundStyle(accent ? .axPrimary : .axTextSecondary)
+                    .foregroundColor(accent ? Color.axPrimary : Color.axTextSecondary)
                     .frame(width: 20)
                 
                 Text(title)
                     .font(AXTypography.bodyMedium)
-                    .foregroundStyle(.axTextPrimary)
+                    .foregroundColor(Color.axTextPrimary)
                 
                 Spacer()
                 
                 Image(systemName: "chevron.right")
                     .font(.system(size: 10))
-                    .foregroundStyle(.axTextTertiary)
+                    .foregroundColor(Color.axTextTertiary)
             }
             .padding(.horizontal, AXSpacing.md)
             .padding(.vertical, AXSpacing.sm)
@@ -727,7 +727,7 @@ struct TaskRowCompact: View {
             
             Text(item.title)
                 .font(AXTypography.bodySmall)
-                .foregroundStyle(.axTextPrimary)
+                .foregroundColor(Color.axTextPrimary)
                 .lineLimit(1)
             
             Spacer()

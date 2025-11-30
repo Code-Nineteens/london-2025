@@ -234,7 +234,7 @@ struct AXSecondaryButton: ViewModifier {
     func body(content: Content) -> some View {
         content
             .font(isCompact ? AXTypography.labelMedium : AXTypography.labelLarge)
-            .foregroundStyle(.axTextPrimary)
+            .foregroundColor(Color.axTextPrimary)
             .padding(.horizontal, isCompact ? AXSpacing.md : AXSpacing.lg)
             .padding(.vertical, isCompact ? AXSpacing.sm : AXSpacing.md)
             .background(
@@ -252,7 +252,7 @@ struct AXGhostButton: ViewModifier {
     func body(content: Content) -> some View {
         content
             .font(AXTypography.labelMedium)
-            .foregroundStyle(.axTextSecondary)
+            .foregroundColor(Color.axTextSecondary)
             .padding(.horizontal, AXSpacing.md)
             .padding(.vertical, AXSpacing.sm)
             .background(
@@ -332,7 +332,7 @@ struct AXStatusBadge: View {
             if let label {
                 Text(label)
                     .font(AXTypography.labelSmall)
-                    .foregroundStyle(.axTextSecondary)
+                    .foregroundColor(Color.axTextSecondary)
             }
         }
         .padding(.horizontal, AXSpacing.sm)
@@ -358,7 +358,7 @@ struct AXIconButton: View {
         Button(action: action) {
             Image(systemName: icon)
                 .font(.system(size: size * 0.45, weight: .medium))
-                .foregroundStyle(isDestructive ? .axError : .axTextSecondary)
+                .foregroundColor(isDestructive ? Color.axError : Color.axTextSecondary)
                 .frame(width: size, height: size)
                 .background(
                     Circle()

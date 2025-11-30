@@ -159,11 +159,11 @@ struct TaskQueueWindowContent: View {
             VStack(alignment: .leading, spacing: AXSpacing.xxs) {
                 Text("Task Queue")
                     .font(AXTypography.displayMedium)
-                    .foregroundStyle(.axTextPrimary)
+                    .foregroundColor(Color.axTextPrimary)
                 
                 Text("\(taskItems.count) tasks total")
                     .font(AXTypography.labelMedium)
-                    .foregroundStyle(.axTextTertiary)
+                    .foregroundColor(Color.axTextTertiary)
             }
 
             Spacer()
@@ -171,7 +171,7 @@ struct TaskQueueWindowContent: View {
             Button(action: { TaskQueueWindowController.shared.close() }) {
                 Image(systemName: "xmark")
                     .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(.axTextTertiary)
+                    .foregroundColor(Color.axTextTertiary)
                     .frame(width: 32, height: 32)
                     .background(
                         Circle()
@@ -220,12 +220,12 @@ struct TaskQueueWindowContent: View {
         HStack(spacing: AXSpacing.sm) {
             Image(systemName: "magnifyingglass")
                 .font(.system(size: 14))
-                .foregroundStyle(.axTextTertiary)
+                .foregroundColor(Color.axTextTertiary)
             
             TextField("Search tasks...", text: $searchText)
                 .textFieldStyle(.plain)
                 .font(AXTypography.bodyMedium)
-                .foregroundStyle(.axTextPrimary)
+                .foregroundColor(Color.axTextPrimary)
         }
         .padding(.horizontal, AXSpacing.md)
         .padding(.vertical, AXSpacing.sm)
@@ -272,12 +272,12 @@ struct TaskQueueWindowContent: View {
                 
                 Image(systemName: "checkmark.circle")
                     .font(.system(size: 28))
-                    .foregroundStyle(.axTextTertiary)
+                    .foregroundColor(Color.axTextTertiary)
             }
             
             Text(searchText.isEmpty ? "No tasks in this category" : "No matching tasks")
                 .font(AXTypography.bodyMedium)
-                .foregroundStyle(.axTextSecondary)
+                .foregroundColor(Color.axTextSecondary)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, AXSpacing.xxxl)
@@ -305,7 +305,7 @@ struct TaskQueueWindowContent: View {
                 } label: {
                     Text("Clear Completed")
                         .font(AXTypography.labelSmall)
-                        .foregroundStyle(.axTextSecondary)
+                        .foregroundColor(Color.axTextSecondary)
                 }
                 .buttonStyle(.plain)
             }
@@ -377,11 +377,11 @@ struct StatBadge: View {
             
             Text("\(value)")
                 .font(AXTypography.mono)
-                .foregroundStyle(.axTextPrimary)
+                .foregroundColor(Color.axTextPrimary)
             
             Text(label)
                 .font(AXTypography.labelSmall)
-                .foregroundStyle(.axTextTertiary)
+                .foregroundColor(Color.axTextTertiary)
         }
     }
 }
@@ -413,12 +413,12 @@ struct TaskQueueRowNew: View {
             VStack(alignment: .leading, spacing: AXSpacing.xxs) {
                 Text(item.title)
                     .font(AXTypography.bodyMedium)
-                    .foregroundStyle(.axTextPrimary)
+                    .foregroundColor(Color.axTextPrimary)
                     .lineLimit(1)
                 
                 Text(item.status.displayName)
                     .font(AXTypography.labelSmall)
-                    .foregroundStyle(.axTextTertiary)
+                    .foregroundColor(Color.axTextTertiary)
             }
 
             Spacer()
@@ -430,7 +430,7 @@ struct TaskQueueRowNew: View {
                         Button(action: onRun) {
                             Image(systemName: "play.fill")
                                 .font(.system(size: 12))
-                                .foregroundStyle(.axPrimary)
+                                .foregroundColor(Color.axPrimary)
                                 .frame(width: 28, height: 28)
                                 .background(
                                     Circle()
@@ -444,7 +444,7 @@ struct TaskQueueRowNew: View {
                     Button(action: onDelete) {
                         Image(systemName: "trash")
                             .font(.system(size: 12))
-                            .foregroundStyle(.axError)
+                            .foregroundColor(Color.axError)
                             .frame(width: 28, height: 28)
                             .background(
                                 Circle()
@@ -474,9 +474,9 @@ struct TaskQueueRowNew: View {
     }
 }
 
-// MARK: - TaskItem Status Extension
+// MARK: - TaskStatus Extension
 
-extension TaskItem.Status {
+extension TaskStatus {
     var displayName: String {
         switch self {
         case .idle: return "Queued"
