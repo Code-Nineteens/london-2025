@@ -15,6 +15,12 @@ struct AxPlaygroundApp: App {
         EnvManager.shared.loadSilently()
         setupNotificationObserver()
         setupBrowserMonitor()
+        
+        // Show the AI activity orb next to the notch
+        Task { @MainActor in
+            DynamicIslandController.shared.show()
+            DynamicIslandController.shared.setActivity(icon: "bolt.fill", color: .green)
+        }
     }
   
     @StateObject private var textChangesOverlayController = TextChangesOverlayController.shared
