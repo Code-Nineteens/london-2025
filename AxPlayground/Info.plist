@@ -4,7 +4,9 @@
 <dict>
 	<key>NSAppleEventsUsageDescription</key>
 	<string>This app needs to monitor accessibility events to log information about clicked UI elements.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>spontOS needs microphone access to enable voice conversations with the AI assistant.</string>
 	<key>CFBundleIdentifier</key>
-	<string></string>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
 </dict>
 </plist>

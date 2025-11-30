@@ -489,7 +489,21 @@ struct MenuBarViewNew: View {
             SectionHeader(title: "QUICK ACTIONS")
             
             VStack(spacing: 2) {
-                MenuActionRow(title: "Test Email", icon: "envelope.fill", accent: true) {
+                MenuActionRow(
+                    title: VoiceAgentManager.shared.isConnected ? "End Voice Agent" : "Start Voice Agent",
+                    icon: VoiceAgentManager.shared.isConnected ? "waveform.circle.fill" : "waveform.circle",
+                    accent: true
+                ) {
+                    Task {
+                        if VoiceAgentManager.shared.isConnected {
+                            await VoiceAgentManager.shared.endConversation()
+                        } else {
+                            await VoiceAgentManager.shared.startConversation()
+                        }
+                    }
+                }
+                
+                MenuActionRow(title: "Test Email", icon: "envelope.fill") {
                     Task { await testEmailWithFullContext() }
                 }
                 

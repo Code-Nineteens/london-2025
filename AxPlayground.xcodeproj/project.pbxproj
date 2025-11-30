@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		96F5DDDC2EDC528000000FE5 /* ElevenLabs in Frameworks */ = {isa = PBXBuildFile; productRef = 96F5DDDB2EDC528000000FE5 /* ElevenLabs */; };
 		AA0011223344556677889900 /* SwiftDotenv in Frameworks */ = {isa = PBXBuildFile; productRef = BB0011223344556677889900 /* SwiftDotenv */; };
 /* End PBXBuildFile section */
 
@@ -28,6 +29,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				AA0011223344556677889900 /* SwiftDotenv in Frameworks */,
+				96F5DDDC2EDC528000000FE5 /* ElevenLabs in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -79,6 +81,7 @@
 			name = AxPlayground;
 			packageProductDependencies = (
 				BB0011223344556677889900 /* SwiftDotenv */,
+				96F5DDDB2EDC528000000FE5 /* ElevenLabs */,
 			);
 			productName = AxPlayground;
 			productReference = EB2F3F302EDB3A58006169F7 /* AxPlayground.app */;
@@ -110,6 +113,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				CC0011223344556677889900 /* XCRemoteSwiftPackageReference "swift-dotenv" */,
+				FF0011223344556677889900 /* XCRemoteSwiftPackageReference "elevenlabs-swift-sdk" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = EB2F3F312EDB3A58006169F7 /* Products */;
@@ -272,7 +276,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = Q27S3BBLY6;
+				DEVELOPMENT_TEAM = NRDLW2DLA3;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
@@ -284,7 +288,9 @@
 				ENABLE_RESOURCE_ACCESS_PHOTO_LIBRARY = NO;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSAppleEventsUsageDescription = "This app needs to control other applications for automation.";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "spontOS needs microphone access to enable voice conversations with the AI assistant.";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -318,7 +324,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = Q27S3BBLY6;
+				DEVELOPMENT_TEAM = NRDLW2DLA3;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
@@ -330,7 +336,9 @@
 				ENABLE_RESOURCE_ACCESS_PHOTO_LIBRARY = NO;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSAppleEventsUsageDescription = "This app needs to control other applications for automation.";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "spontOS needs microphone access to enable voice conversations with the AI assistant.";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -386,9 +394,22 @@
 				minimumVersion = 2.0.0;
 			};
 		};
+		FF0011223344556677889900 /* XCRemoteSwiftPackageReference "elevenlabs-swift-sdk" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/elevenlabs/elevenlabs-swift-sdk.git";
+			requirement = {
+				branch = main;
+				kind = branch;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		96F5DDDB2EDC528000000FE5 /* ElevenLabs */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = FF0011223344556677889900 /* XCRemoteSwiftPackageReference "elevenlabs-swift-sdk" */;
+			productName = ElevenLabs;
+		};
 		BB0011223344556677889900 /* SwiftDotenv */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = CC0011223344556677889900 /* XCRemoteSwiftPackageReference "swift-dotenv" */;
