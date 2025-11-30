@@ -9,7 +9,7 @@ import Cocoa
 import ApplicationServices
 import Combine
 
-/// Monitors screen for text changes in real-time
+/// Monitors screen for text changes in real-time using OCR
 @MainActor
 final class ScreenTextMonitor: ObservableObject {
     
@@ -17,9 +17,18 @@ final class ScreenTextMonitor: ObservableObject {
     
     @Published var isMonitoring = false
     @Published var lastChanges: [TextChange] = []
+    @Published var useOCR = true // Toggle between OCR and Accessibility
     
-    // Simple approach: track unique texts per app (not by position)
-    private var previousTexts: [String: Set<String>] = [:] // appName -> texts
+    /// If true, collect ALL visible text each scan (not just changes)
+    /// Better for context collection
+    var collectFullContent = true
+    
+    // OCR service
+    private let ocrService = ScreenOCRService.shared
+    
+    // Track unique texts per app
+    private var previousTexts: Set<String> = []
+    private var lastFullContentHash: Int = 0
     private var monitorTimer: Timer?
     private var onChangeCallback: ((TextChange) -> Void)?
     private var isFirstCheck = true
@@ -44,8 +53,8 @@ final class ScreenTextMonitor: ObservableObject {
     
     // MARK: - Public Methods
     
-    /// Start monitoring for text changes
-    func startMonitoring(interval: TimeInterval = 1.0, onChange: @escaping (TextChange) -> Void) {
+    /// Start monitoring for text changes (using OCR)
+    func startMonitoring(interval: TimeInterval = 2.0, onChange: @escaping (TextChange) -> Void) {
         stopMonitoring()
         
         self.onChangeCallback = onChange
@@ -53,28 +62,27 @@ final class ScreenTextMonitor: ObservableObject {
         self.lastChanges = []
         self.isFirstCheck = true
         
-        print("📡 Starting monitor... taking baseline snapshot")
+        print("📡 ============================================")
+        print("📡 Starting OCR monitor (interval: \(interval)s)")
+        print("📡 ============================================")
         
-        // Take TWO snapshots with delay to ensure stability
-        self.previousTexts = getCurrentTextsPerApp()
-        
-        // Wait 1 second, then take another snapshot as the REAL baseline
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
-            guard let self = self, self.isMonitoring else { return }
-            
-            // Take fresh baseline after 1 second
-            self.previousTexts = self.getCurrentTextsPerApp()
+        // Take baseline with OCR
+        Task {
+            print("📡 Taking baseline snapshot...")
+            self.previousTexts = await getCurrentTextsWithOCR()
             self.lastActiveAppName = NSWorkspace.shared.frontmostApplication?.localizedName
             self.isFirstCheck = false
             
-            print("📡 Baseline set: \(self.previousTexts.values.reduce(0) { $0 + $1.count }) texts in \(self.lastActiveAppName ?? "unknown")")
+            print("📡 ✅ Baseline set: \(self.previousTexts.count) texts in \(self.lastActiveAppName ?? "unknown")")
+            print("📡 Starting timer...")
             
-            // NOW start the timer
+            // Start the timer (longer interval for OCR - more CPU intensive)
             self.monitorTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
                 Task { @MainActor in
-                    self?.checkForChanges()
+                    await self?.checkForChangesWithOCR()
                 }
             }
+            print("📡 ✅ Timer started")
         }
     }
     
@@ -84,15 +92,16 @@ final class ScreenTextMonitor: ObservableObject {
         monitorTimer = nil
         isMonitoring = false
         onChangeCallback = nil
-        previousTexts = [:]
+        previousTexts = []
         lastActiveAppName = nil
         isFirstCheck = true
-        print("⏹️ Stopped monitoring")
+        print("⏹️ Stopped OCR monitoring")
     }
     
-    // MARK: - Private Methods
+    // MARK: - OCR Methods
     
     private let ignoredBundleIds: Set<String> = [
+        // System apps
         "com.apple.finder",
         "com.apple.dock",
         "com.apple.controlcenter",
@@ -101,52 +110,109 @@ final class ScreenTextMonitor: ObservableObject {
         "com.apple.Spotlight",
         "com.apple.WindowManager",
         "com.apple.universalcontrol",
+        "com.apple.SecurityAgent",  // Touch ID, password dialogs
+        "com.apple.UserNotificationCenter",
+        
+        // Dev tools - too much noise
+        "com.apple.dt.Xcode",
+        "com.apple.Terminal",
+        "com.googlecode.iterm2",
+        "dev.warp.Warp-Stable",
+        
+        // IDEs - capture our own output
+        "com.todesktop.230313mzl4w4u92",  // Windsurf
+        "com.todesktop.cursor",  // Cursor
+        "com.microsoft.VSCode",
     ]
     
-    private func checkForChanges() {
-        guard !isFirstCheck else { return }
+    /// Get current texts using OCR
+    private func getCurrentTextsWithOCR() async -> Set<String> {
+        // Skip if we're the active app
+        if let activeApp = NSWorkspace.shared.frontmostApplication,
+           activeApp.bundleIdentifier == Bundle.main.bundleIdentifier {
+            print("📡 OCR Monitor: skipping - we are active app")
+            return previousTexts
+        }
+        
+        // Skip ignored apps
+        if let activeApp = NSWorkspace.shared.frontmostApplication,
+           let bundleId = activeApp.bundleIdentifier,
+           ignoredBundleIds.contains(bundleId) {
+            print("📡 OCR Monitor: skipping - ignored app \(bundleId)")
+            return previousTexts
+        }
+        
+        print("📡 OCR Monitor: calling OCR service...")
+        let texts = await ocrService.captureAndGetTexts()
+        print("📡 OCR Monitor: got \(texts.count) texts")
+        return texts
+    }
+    
+    /// Check for text changes using OCR
+    private func checkForChangesWithOCR() async {
+        guard !isFirstCheck else { 
+            print("📡 OCR Monitor: isFirstCheck=true, skipping")
+            return 
+        }
         
         // Get current active app
         guard let activeApp = NSWorkspace.shared.frontmostApplication,
               let activeAppName = activeApp.localizedName else {
+            print("📡 OCR Monitor: no active app")
             return
         }
         
-        // If active app changed, reset baseline (don't report as changes)
+        // If active app changed, reset
         if lastActiveAppName != activeAppName {
-            print("📱 Active app changed to: \(activeAppName) - resetting baseline")
+            print("📱 Active app changed to: \(activeAppName)")
             lastActiveAppName = activeAppName
-            previousTexts = getCurrentTextsPerApp()
-            return // Don't check for changes on app switch
+            previousTexts = []
+            lastFullContentHash = 0
         }
         
-        let currentTexts = getCurrentTextsPerApp()
+        let currentTexts = await getCurrentTextsWithOCR()
+        guard !currentTexts.isEmpty else { return }
         
-        // Compare per app - only for active app
-        for (appName, currentSet) in currentTexts {
-            let previousSet = previousTexts[appName] ?? []
+        if collectFullContent {
+            // MODE 1: Collect ALL visible text (better for context)
+            let meaningfulTexts = currentTexts.filter { text in
+                text.count > 3 && !isNoiseText(text)
+            }
             
-            // New texts in this app
-            let addedTexts = currentSet.subtracting(previousSet)
-            for text in addedTexts {
+            let combinedText = meaningfulTexts.sorted().joined(separator: "\n")
+            let contentHash = combinedText.hashValue
+            
+            // Only report if content changed significantly
+            if contentHash != lastFullContentHash && combinedText.count > 50 {
+                lastFullContentHash = contentHash
+                
+                print("📡 OCR Full Content: \(meaningfulTexts.count) texts, \(combinedText.count) chars")
+                
                 reportChange(TextChange(
                     timestamp: Date(),
-                    appName: appName,
+                    appName: activeAppName,
                     oldText: nil,
-                    newText: text,
+                    newText: combinedText,
                     changeType: .added
                 ))
             }
+        } else {
+            // MODE 2: Only report changes (original behavior)
+            let addedTexts = currentTexts.subtracting(previousTexts)
+            let meaningfulTexts = addedTexts.filter { text in
+                text.count > 3 && !isNoiseText(text)
+            }
             
-            // Removed texts
-            let removedTexts = previousSet.subtracting(currentSet)
-            for text in removedTexts {
+            if !meaningfulTexts.isEmpty {
+                let combinedText = meaningfulTexts.sorted().joined(separator: "\n")
+                print("📡 OCR Changes: \(meaningfulTexts.count) new texts")
+                
                 reportChange(TextChange(
                     timestamp: Date(),
-                    appName: appName,
-                    oldText: text,
-                    newText: "",
-                    changeType: .removed
+                    appName: activeAppName,
+                    oldText: nil,
+                    newText: combinedText,
+                    changeType: .added
                 ))
             }
         }
@@ -154,12 +220,39 @@ final class ScreenTextMonitor: ObservableObject {
         previousTexts = currentTexts
     }
     
+    /// Check if text is noise (UI elements, etc.)
+    private func isNoiseText(_ text: String) -> Bool {
+        let lower = text.lowercased()
+        
+        // Only filter exact match menu items
+        let noisePatterns = [
+            "file", "edit", "view", "window", "help",
+            "close", "minimize", "maximize", "zoom",
+            "ok", "cancel", "save", "open", "new"
+        ]
+        
+        // Only filter if it's an exact match (not part of larger text)
+        if noisePatterns.contains(lower) { 
+            return true 
+        }
+        
+        // Filter keyboard shortcut symbols only
+        if text.allSatisfy({ "⌘⇧⌥⌃◀▶▲▼←→↑↓".contains($0) }) {
+            return true
+        }
+        
+        return false
+    }
+    
     private func reportChange(_ change: TextChange) {
         // Ignore own bundle ID
         if let myBundleId = Bundle.main.bundleIdentifier,
            change.appName.contains("AxPlayground") || change.appName == myBundleId {
+            print("📡 reportChange: SKIP - own app")
             return
         }
+        
+        print("📡 reportChange: ✅ sending \(change.newText.count) chars from \(change.appName)")
         
         lastChanges.insert(change, at: 0)
         if lastChanges.count > 50 {
@@ -167,118 +260,5 @@ final class ScreenTextMonitor: ObservableObject {
         }
         
         onChangeCallback?(change)
-    }
-    
-    private func getCurrentTextsPerApp() -> [String: Set<String>] {
-        guard let screen = NSScreen.main else { return [:] }
-        let screenRect = screen.frame
-        
-        var result: [String: Set<String>] = [:]
-        
-        // ONLY monitor the ACTIVE (frontmost) application
-        // This prevents detecting automatic changes in background apps (like Dia's rotating placeholder)
-        for app in NSWorkspace.shared.runningApplications where app.activationPolicy == .regular {
-            // Skip if not the active app
-            guard app.isActive else { continue }
-            
-            guard let bundleId = app.bundleIdentifier,
-                  !ignoredBundleIds.contains(bundleId),
-                  bundleId != Bundle.main.bundleIdentifier else { continue }
-            
-            let appName = app.localizedName ?? "Unknown"
-            let appElement = AXUIElementCreateApplication(app.processIdentifier)
-            
-            var windowsValue: AnyObject?
-            guard AXUIElementCopyAttributeValue(appElement, kAXWindowsAttribute as CFString, &windowsValue) == .success,
-                  let windows = windowsValue as? [AXUIElement] else { continue }
-            
-            var appTexts: Set<String> = []
-            
-            for window in windows {
-                let windowPos = extractPosition(from: window)
-                let windowSize = extractSize(from: window)
-                let windowRect = CGRect(origin: windowPos, size: windowSize)
-                
-                guard screenRect.intersects(windowRect) else { continue }
-                
-                let visibleRect = screenRect.intersection(windowRect)
-                extractTexts(window, visibleRect: visibleRect, into: &appTexts)
-            }
-            
-            if !appTexts.isEmpty {
-                result[appName] = appTexts
-            }
-        }
-        
-        return result
-    }
-    
-    private func extractTexts(_ element: AXUIElement, visibleRect: CGRect, into texts: inout Set<String>, depth: Int = 0) {
-        guard depth < 15 else { return }
-        
-        let position = extractPosition(from: element)
-        let size = extractSize(from: element)
-        
-        guard size.width > 0 && size.height > 0 else { return }
-        
-        let elementRect = CGRect(origin: position, size: size)
-        guard visibleRect.intersects(elementRect) else { return }
-        
-        // Get text - only meaningful texts
-        if let text = getTextFromElement(element),
-           !text.isEmpty,
-           text.count > 3,
-           !text.allSatisfy({ $0.isWhitespace || $0.isNewline }) {
-            texts.insert(text)
-        }
-        
-        // Recurse children
-        var children: AnyObject?
-        if AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &children) == .success,
-           let childArray = children as? [AXUIElement] {
-            for child in childArray {
-                extractTexts(child, visibleRect: visibleRect, into: &texts, depth: depth + 1)
-            }
-        }
-    }
-    
-    private func getTextFromElement(_ element: AXUIElement) -> String? {
-        var value: AnyObject?
-        
-        if AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &value) == .success,
-           let text = value as? String, !text.isEmpty {
-            return text
-        }
-        
-        if AXUIElementCopyAttributeValue(element, kAXTitleAttribute as CFString, &value) == .success,
-           let text = value as? String, !text.isEmpty {
-            return text
-        }
-        
-        return nil
-    }
-    
-    private func extractPosition(from element: AXUIElement) -> CGPoint {
-        var value: AnyObject?
-        guard AXUIElementCopyAttributeValue(element, kAXPositionAttribute as CFString, &value) == .success else {
-            return .zero
-        }
-        
-        let axValue = value as! AXValue
-        var point = CGPoint.zero
-        AXValueGetValue(axValue, .cgPoint, &point)
-        return point
-    }
-    
-    private func extractSize(from element: AXUIElement) -> CGSize {
-        var value: AnyObject?
-        guard AXUIElementCopyAttributeValue(element, kAXSizeAttribute as CFString, &value) == .success else {
-            return .zero
-        }
-        
-        let axValue = value as! AXValue
-        var size = CGSize.zero
-        AXValueGetValue(axValue, .cgSize, &size)
-        return size
     }
 }

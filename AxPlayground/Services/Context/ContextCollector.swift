@@ -154,6 +154,123 @@ final class ContextCollector: ObservableObject {
         scheduleBatchProcessing()
     }
     
+    /// Collect from OCR screen capture (aggregated text from one scan)
+    func collectFromOCR(text: String, appName: String) async {
+        guard isCollecting else { 
+            print("🔍 OCR SKIP: not collecting (isCollecting=false)")
+            return 
+        }
+        guard text.count >= 50 else { 
+            print("🔍 OCR SKIP: too short (\(text.count) chars)")
+            return 
+        }
+        
+        // Filter out garbage content
+        if isOCRGarbage(text) {
+            print("🔍 OCR SKIP: garbage content")
+            return
+        }
+        
+        // Simple deduplication
+        let hash = text.hashValue
+        if recentHashes.contains(hash) { 
+            print("🔍 OCR SKIP: duplicate hash")
+            return 
+        }
+        
+        recentHashes.insert(hash)
+        if recentHashes.count > maxHashCache {
+            recentHashes.removeFirst()
+        }
+        
+        let entities = extractEntities(from: text)
+        let topic = classifyTopic(content: text, appName: appName)
+        
+        let chunk = ContextChunk(
+            source: .ocr,
+            content: text,
+            entities: entities,
+            topic: topic,
+            embedding: nil,
+            metadata: [
+                "app": appName,
+                "capture_type": "ocr_aggregate"
+            ]
+        )
+        
+        // Generate embedding and store
+        print("🔍 OCR: Generating embedding...")
+        do {
+            var enrichedChunk = chunk
+            
+            // Try to generate embedding
+            if await embeddingService.isConfigured {
+                let embedding = try await embeddingService.embed(text: text)
+                enrichedChunk = ContextChunk(
+                    id: chunk.id,
+                    timestamp: chunk.timestamp,
+                    source: chunk.source,
+                    content: chunk.content,
+                    entities: chunk.entities,
+                    topic: chunk.topic,
+                    embedding: embedding,
+                    metadata: chunk.metadata
+                )
+                print("🔍 OCR: ✅ Embedding generated")
+            } else {
+                print("🔍 OCR: ⚠️ No embedding API - saving without")
+            }
+            
+            try await store.insert(enrichedChunk)
+            chunksCollected += 1
+            print("🔍 ✅ OCR saved from \(appName): \(text.prefix(50))...")
+        } catch {
+            print("🔍 ❌ OCR failed: \(error)")
+            // Still try to save without embedding
+            try? await store.insert(chunk)
+        }
+    }
+    
+    /// Check if OCR content is garbage (dev tools, SQL, system values)
+    private func isOCRGarbage(_ text: String) -> Bool {
+        let lower = text.lowercased()
+        
+        // ⚠️ SECURITY: Never capture API keys or secrets!
+        if lower.contains("api_key") || lower.contains("api-key") { return true }
+        if lower.contains("sk-ant-") || lower.contains("sk-proj-") { return true }
+        if lower.contains("secret") || lower.contains("password=") { return true }
+        if lower.contains("bearer ") || lower.contains("authorization:") { return true }
+        
+        // SQL queries
+        if lower.contains("select ") && lower.contains(" from ") { return true }
+        if lower.contains("insert into") { return true }
+        
+        // Dev tool / IDE markers (Windsurf, Cursor, VSCode)
+        let devMarkers = [
+            "claude opus", "thinking)", "accept file",
+            "axplayground", "localhost:", "sqlite3",
+            "xcodebuild", "build succeeded", "build failed",
+            "< > code", "code claude", ".swift",
+            "emaildraftcomposer", "contextcollector",
+            "ocr monitor", "screencapture",
+            "-scheme", "xcode", ".env",
+            "generate +", "message (%enter"
+        ]
+        for marker in devMarkers {
+            if lower.contains(marker) { return true }
+        }
+        
+        // System values patterns (lots of KB/s, MB, percentages)
+        let systemPatterns = text.components(separatedBy: .whitespaces)
+            .filter { $0.hasSuffix("KB/s") || $0.hasSuffix("MB/s") || $0.hasSuffix("MB") || $0.hasSuffix("%") }
+        if systemPatterns.count > 3 { return true }
+        
+        // Touch ID / password dialogs
+        if lower.contains("touch id") || lower.contains("podaj haslo") { return true }
+        
+        return false
+    }
+    
     /// Collect from notification
     func collectFromNotification(title: String?, body: String?, app: String) async {
         guard isCollecting else { return }

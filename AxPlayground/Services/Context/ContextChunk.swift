@@ -51,6 +51,7 @@ enum ContextSource: String, Codable, Sendable {
     case document
     case accessibility
     case notification
+    case ocr  // OCR screen capture
     case unknown
     
     /// Map app name to context source
