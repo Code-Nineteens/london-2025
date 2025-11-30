@@ -13,6 +13,8 @@ struct DynamicIslandView: View {
     let icon: String?
     let onClose: (() -> Void)?
     var onInsertNow: (() -> Void)? = nil
+    var actionButtonTitle: String = "Insert Now"
+    var actionButtonIcon: String = "sparkles"
 
     @Binding var isVisible: Bool
 
@@ -148,9 +150,9 @@ struct DynamicIslandView: View {
                     onClose?()
                 } label: {
                     HStack(spacing: 6) {
-                        Image(systemName: "sparkles")
+                        Image(systemName: actionButtonIcon)
                             .font(.system(size: 11, weight: .medium))
-                        Text("Insert Now")
+                        Text(actionButtonTitle)
                             .font(.system(size: 12, weight: .semibold))
                     }
                     .foregroundStyle(.black)

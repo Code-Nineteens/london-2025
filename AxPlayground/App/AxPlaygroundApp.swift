@@ -13,42 +13,7 @@ struct AxPlaygroundApp: App {
     init() {
         EnvManager.shared.loadSilently()
         setupNotificationObserver()
-    }
-    
-    /// Load .env file and return dictionary of key-value pairs
-    private func loadEnvFile() -> [String: String] {
-        var result: [String: String] = [:]
-        
-        // Try project root .env
-        let projectEnvPath = "/Users/filipwnek/Projects/london-2025/.env"
-        
-        guard let contents = try? String(contentsOfFile: projectEnvPath, encoding: .utf8) else {
-            print("⚠️ Could not read .env file at \(projectEnvPath)")
-            return result
-        }
-        
-        let lines = contents.components(separatedBy: .newlines)
-        for line in lines {
-            let trimmed = line.trimmingCharacters(in: .whitespaces)
-            
-            // Skip comments and empty lines
-            guard !trimmed.isEmpty, !trimmed.hasPrefix("#") else { continue }
-            
-            // Parse KEY=VALUE
-            let parts = trimmed.components(separatedBy: "=")
-            guard parts.count >= 2 else { continue }
-            
-            let key = parts[0].trimmingCharacters(in: .whitespaces)
-            let value = parts.dropFirst().joined(separator: "=").trimmingCharacters(in: .whitespaces)
-            
-            // Remove quotes if present
-            let cleanValue = value.trimmingCharacters(in: CharacterSet(charactersIn: "\"'"))
-            
-            result[key] = cleanValue
-            print("📄 Loaded from .env: \(key)=\(String(cleanValue.prefix(10)))...")
-        }
-        
-        return result
+        setupBrowserMonitor()
     }
   
     @StateObject private var textChangesOverlayController = TextChangesOverlayController.shared
@@ -58,6 +23,7 @@ struct AxPlaygroundApp: App {
     @StateObject private var actionMonitor = UserActionMonitor.shared
     @StateObject private var activityLogger = ScreenActivityLogger.shared
     @StateObject private var automationService = AutomationSuggestionService.shared
+    @StateObject private var browserMonitor = BrowserMonitor.shared
 
     @State private var taskItems: [TaskItem] = [
         TaskItem(title: "Review accessibility events", status: .completed),
@@ -118,13 +84,10 @@ struct AxPlaygroundApp: App {
         // Auto-start observing
         NotificationCenterObserver.shared.startObserving()
         
-        // Load .env file
-        let envVars = loadEnvFile()
-        
         // Initialize services
         Task {
             // Configure Anthropic API
-            let anthropicKey = ProcessInfo.processInfo.environment["ANTHROPIC_API_KEY"] ?? envVars["ANTHROPIC_API_KEY"]
+            let anthropicKey = EnvManager.shared[.anthropicKey]
             if let key = anthropicKey, !key.isEmpty {
                 print("🔑 Found Anthropic API key")
                 await AutomationSuggestionService.shared.configureAPIKey(key)
@@ -133,7 +96,7 @@ struct AxPlaygroundApp: App {
             }
             
             // Configure OpenAI API (for embeddings)
-            let openAIKey = ProcessInfo.processInfo.environment["OPENAI_API_KEY"] ?? envVars["OPENAI_API_KEY"]
+            let openAIKey = EnvManager.shared[.openAIKey]
             if let key = openAIKey, !key.isEmpty {
                 print("🔑 Found OpenAI API key")
                 await OpenAIEmbeddingService.shared.setAPIKey(key)
@@ -190,6 +153,19 @@ struct AxPlaygroundApp: App {
             }
         }
         print("👁️ Screen text monitoring started (1s interval)")
+    }
+    
+    private func setupBrowserMonitor() {
+        BrowserMonitor.shared.startMonitoring { issue in
+            print("🔍 Detected issue: \(issue.repository)#\(issue.issueNumber)")
+            
+            NotificationManager.shared.show(
+                title: "Issue #\(issue.issueNumber) detected",
+                message: "Want AI to fix \(issue.repository)?",
+                icon: "ant.fill"
+            )
+        }
+        print("🌐 Browser monitor started")
     }
 }
 
@@ -342,7 +318,7 @@ struct MenuBarView: View {
                         let isReady = await automationService.isReady
                         if !isReady {
                             // API key should be set via environment variable ANTHROPIC_API_KEY
-                            if let envKey = ProcessInfo.processInfo.environment["ANTHROPIC_API_KEY"] {
+                            if let envKey = EnvManager.shared[.anthropicKey] {
                                 await automationService.configureAPIKey(envKey)
                             } else {
                                 print("⚠️ No ANTHROPIC_API_KEY environment variable set")
