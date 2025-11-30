@@ -94,12 +94,34 @@ struct CalendarHelper {
 
     /// Creates event from CalendarEventPayload
     static func createEvent(from payload: CalendarEventPayload) {
+        print("")
+        print("📅 ═══════════════════════════════════════════════════")
+        print("📅 CalendarHelper.createEvent(from payload:) CALLED")
+        print("📅 ═══════════════════════════════════════════════════")
+        print("📅 Payload details:")
+        print("📅   shouldCreateEvent: \(payload.shouldCreateEvent)")
+        print("📅   eventTitle: \(payload.eventTitle)")
+        print("📅   startTime (raw): \(payload.startTime)")
+        print("📅   endTime (raw): \(payload.endTime)")
+        print("📅   attendeeEmail: \(payload.attendeeEmail ?? "nil")")
+        print("📅   attendeeName: \(payload.attendeeName ?? "nil")")
+        print("📅   location: \(payload.location ?? "nil")")
+        print("📅   notes: \(payload.notes ?? "nil")")
+        print("📅   isActionable: \(payload.isActionable)")
+
         guard let startDate = payload.startDate else {
-            print("📅 ❌ Cannot create event: invalid start time")
+            print("📅 ❌ Cannot create event: FAILED to parse start time from '\(payload.startTime)'")
+            print("📅 ❌ Make sure the LLM returns ISO 8601 format: YYYY-MM-DDTHH:MM:SS")
             return
         }
+        print("📅 ✅ startDate parsed: \(startDate)")
 
         let endDate = payload.endDate ?? startDate.addingTimeInterval(3600) // Default 1 hour
+        if payload.endDate == nil {
+            print("📅 ⚠️ endDate not parsed, using default +1 hour: \(endDate)")
+        } else {
+            print("📅 ✅ endDate parsed: \(endDate)")
+        }
 
         createEvent(
             title: payload.eventTitle,
@@ -115,31 +137,54 @@ struct CalendarHelper {
 
     /// Run AppleScript via osascript command
     private static func runOsascript(_ script: String) {
+        print("")
+        print("📅 ═══════════════════════════════════════════════════")
+        print("📅 RUNNING APPLESCRIPT")
+        print("📅 ═══════════════════════════════════════════════════")
+        print("📅 Script:")
+        print(script)
+        print("📅 ───────────────────────────────────────────────────")
+
         let task = Process()
         task.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
         task.arguments = ["-e", script]
 
-        let pipe = Pipe()
-        task.standardOutput = pipe
-        task.standardError = pipe
+        let stdoutPipe = Pipe()
+        let stderrPipe = Pipe()
+        task.standardOutput = stdoutPipe
+        task.standardError = stderrPipe
 
         do {
             try task.run()
             task.waitUntilExit()
 
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            if let output = String(data: data, encoding: .utf8), !output.isEmpty {
-                print("📅 osascript output: \(output)")
+            let stdoutData = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
+            let stderrData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
+
+            if let stdout = String(data: stdoutData, encoding: .utf8), !stdout.isEmpty {
+                print("📅 osascript stdout: \(stdout)")
+            }
+
+            if let stderr = String(data: stderrData, encoding: .utf8), !stderr.isEmpty {
+                print("📅 ⚠️ osascript stderr: \(stderr)")
             }
 
             if task.terminationStatus != 0 {
-                print("❌ osascript failed with status: \(task.terminationStatus)")
+                print("📅 ❌ osascript failed with exit code: \(task.terminationStatus)")
+                print("📅 ❌ Common issues:")
+                print("📅     - Calendar app not accessible")
+                print("📅     - Calendar '\(script.contains("szymon.rybczak@gmail.com") ? "szymon.rybczak@gmail.com" : "unknown")' does not exist")
+                print("📅     - Automation permissions not granted")
             } else {
-                print("✅ Calendar event created successfully")
+                print("📅 ✅ Calendar event created successfully!")
             }
         } catch {
-            print("❌ Failed to run osascript: \(error)")
+            print("📅 ❌ Failed to run osascript: \(error)")
+            print("📅 ❌ This usually means:")
+            print("📅     - /usr/bin/osascript not found")
+            print("📅     - Process execution blocked")
         }
+        print("📅 ═══════════════════════════════════════════════════")
     }
 
     private static func escapeForAppleScript(_ text: String) -> String {
