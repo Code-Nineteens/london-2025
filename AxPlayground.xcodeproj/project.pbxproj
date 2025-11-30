@@ -11,7 +11,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		EB2F3F302EDB3A58006169F7 /* AxPlayground.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AxPlayground.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		EB2F3F302EDB3A58006169F7 /* vibecodeos.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = vibecodeos.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -53,7 +53,7 @@
 		EB2F3F312EDB3A58006169F7 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				EB2F3F302EDB3A58006169F7 /* AxPlayground.app */,
+				EB2F3F302EDB3A58006169F7 /* vibecodeos.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -81,7 +81,7 @@
 				BB0011223344556677889900 /* SwiftDotenv */,
 			);
 			productName = AxPlayground;
-			productReference = EB2F3F302EDB3A58006169F7 /* AxPlayground.app */;
+			productReference = EB2F3F302EDB3A58006169F7 /* vibecodeos.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -291,7 +291,7 @@
 				);
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.playground.AxPlayground;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_NAME = vibecodeos;
 				REGISTER_APP_GROUPS = YES;
 				RUNTIME_EXCEPTION_ALLOW_DYLD_ENVIRONMENT_VARIABLES = NO;
 				RUNTIME_EXCEPTION_ALLOW_JIT = NO;
@@ -337,7 +337,7 @@
 				);
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.playground.AxPlayground;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_NAME = vibecodeos;
 				REGISTER_APP_GROUPS = YES;
 				RUNTIME_EXCEPTION_ALLOW_DYLD_ENVIRONMENT_VARIABLES = NO;
 				RUNTIME_EXCEPTION_ALLOW_JIT = NO;
