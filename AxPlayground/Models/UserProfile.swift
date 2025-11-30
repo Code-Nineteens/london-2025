@@ -54,11 +54,11 @@ struct UserProfile: Codable {
             email: nil,
             company: nil,
             role: nil,
-            preferredLanguage: "Polish",
+            preferredLanguage: "English",
             writingStyle: WritingStyle(
                 formality: "semi-formal",
-                greetings: ["Cześć", "Hej", "Dzień dobry"],
-                closings: ["Pozdrawiam", "Do usłyszenia", "Dzięki"]
+                greetings: ["Hi", "Hey", "Hello"],
+                closings: ["Best", "Thanks", "Cheers"]
             ),
             knownContacts: [],
             systemFullName: fullName,

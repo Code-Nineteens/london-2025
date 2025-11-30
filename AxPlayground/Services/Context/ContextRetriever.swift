@@ -122,21 +122,29 @@ final class ContextRetriever: ObservableObject {
             let topicMatch = topicMatchScore(intent, chunk)
             
             // BIG BOOST for chunks that were found by entity search
-            let entitySearchBoost: Float = entityMatchedIds.contains(chunk.id) ? 0.5 : 0.0
+            let entitySearchBoost: Float = entityMatchedIds.contains(chunk.id) ? 0.6 : 0.0
             
             // Also check if chunk content contains any of the intent entities
             let contentContainsEntity = intentEntities.contains { entity in
                 chunk.content.lowercased().contains(entity.value.lowercased()) ||
                 chunk.content.lowercased().contains(entity.value.components(separatedBy: " ").first?.lowercased() ?? "")
             }
-            let contentBoost: Float = contentContainsEntity ? 0.3 : 0.0
+            let contentBoost: Float = contentContainsEntity ? 0.5 : 0.0
+
+            // PENALTY if intent has explicit entities but chunk has none of them
+            // This is crucial for distinguishing "Marcin" context from "Piotrek" context
+            var irrelevancePenalty: Float = 0.0
+            if !intentEntities.isEmpty && !contentContainsEntity && !entityMatchedIds.contains(chunk.id) {
+                 irrelevancePenalty = 0.5
+            }
             
             // Combine scores
             let score = recencyWeight * recency +
                         relevanceWeight * topicMatch +
                         entityWeight * entityMatch +
                         entitySearchBoost +
-                        contentBoost
+                        contentBoost -
+                        irrelevancePenalty
             
             return (chunk, score)
         }
@@ -219,7 +227,30 @@ final class ContextRetriever: ObservableObject {
         
         // 2. Look for any capitalized words that might be names (Polish names)
         let commonFirstNames = Set(["Adam", "Kamil", "Filip", "Piotr", "Marcin", "Tomasz", "Michał", 
-                                     "Krzysztof", "Paweł", "Anna", "Maria", "Katarzyna", "Monika", "Bartek"])
+                                     "Krzysztof", "Paweł", "Anna", "Maria", "Katarzyna", "Monika", "Bartek",
+                                     "Piotrek", "Marian"])
+        
+        // Add regex for "email to [Name]" in English
+        let englishPatterns: [(String, EntityType)] = [
+            (#"email\s+to\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)"#, .person),
+            (#"mail\s+to\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)"#, .person),
+            (#"send\s+to\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)"#, .person)
+        ]
+
+        for (pattern, entityType) in englishPatterns {
+            if let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) { // case insensitive for English
+                let range = NSRange(intent.startIndex..., in: intent)
+                if let match = regex.firstMatch(in: intent, range: range) {
+                    if match.numberOfRanges > 1,
+                       let captureRange = Range(match.range(at: 1), in: intent) {
+                        let value = String(intent[captureRange]).trimmingCharacters(in: .whitespaces)
+                        if value.count > 1 && !entities.contains(where: { $0.value.lowercased() == value.lowercased() }) {
+                            entities.append(Entity(type: entityType, value: value))
+                        }
+                    }
+                }
+            }
+        }
         
         let words = intent.components(separatedBy: CharacterSet.whitespaces)
         for word in words {

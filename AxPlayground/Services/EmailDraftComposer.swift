@@ -60,35 +60,47 @@ final class EmailDraftComposer: ObservableObject {
             systemState: systemState
         )
         
+        // Log full prompt for debugging
+        print("")
+        print("📧 ═══════════════════════════════════════════════════")
+        print("📧 FULL LLM PROMPT:")
+        print("📧 ═══════════════════════════════════════════════════")
+        print(prompt)
+        print("📧 ═══════════════════════════════════════════════════")
+        print("")
+        
         // 3. Call LLM for email composition
         guard let draft = await composeWithLLM(prompt: prompt) else {
             print("📧 ❌ LLM composition failed")
             return nil
         }
         
-        // 4. Validate draft - reject if body is just the intent repeated
-        if isInvalidEmailBody(draft.emailBody, intent: intent) {
-            print("📧 ❌ Invalid email body - just repeated intent")
-            return EmailDraftPayload(
-                shouldComposeEmail: false,
+        // 4. Force should_compose_email to true (we always want to open Mail)
+        var finalDraft = draft
+        if !draft.shouldComposeEmail {
+            print("📧 ⚠️ LLM said no compose, but we force open Mail anyway")
+            finalDraft = EmailDraftPayload(
+                shouldComposeEmail: true,
                 inferredTask: draft.inferredTask,
-                confidence: 0.0,
-                valueAddedContextUsed: [],
-                emailSubject: draft.emailSubject,
-                emailBody: "",
+                confidence: draft.confidence,
+                valueAddedContextUsed: draft.valueAddedContextUsed,
+                emailSubject: draft.emailSubject.isEmpty ? "" : draft.emailSubject,
+                emailBody: "", // Empty body, user fills in
                 recipient: draft.recipient,
-                missingInfo: "Brak wystarczającego kontekstu. Podaj: do kogo jest mail i o czym ma być.",
+                missingInfo: nil,
                 timestamp: Date()
             )
         }
+        let validatedDraft = finalDraft
         
         print("📧 ✅ Draft composed!")
-        print("📧 Subject: \(draft.emailSubject)")
-        print("📧 Body preview: \(draft.emailBody.prefix(100))...")
+        print("📧 Subject: \(validatedDraft.emailSubject)")
+        print("📧 Recipient: \(validatedDraft.recipient ?? "none")")
+        print("📧 Body preview: \(validatedDraft.emailBody.prefix(100))...")
         print("📧═══════════════════════════════════════════════════")
         
-        lastDraft = draft
-        return draft
+        lastDraft = validatedDraft
+        return validatedDraft
     }
     
     /// Check if email body is invalid (just repeated intent or too generic)
@@ -169,59 +181,61 @@ final class EmailDraftComposer: ObservableObject {
         contextString: String,
         systemState: SystemState
     ) -> String {
-        let hasContext = !contextString.isEmpty && contextString != "No relevant context available."
         let userProfile = userProfileManager.profile
         
         return """
-        TASK: Compose a real, sendable email based on the user's intent and context.
+        TASK: Compose an email based on the user's intent and context.
         
         USER INTENT: "\(intent)"
         
-        \(userProfile.contextForLLM())
-        
-        IMPORTANT: The USER is \(userProfile.name). When you see messages FROM \(userProfile.name), those are the USER's own messages.
-        When composing email, write AS \(userProfile.name), not TO \(userProfile.name).
+        USER: \(userProfile.name)
+        LANGUAGE: English (ALWAYS write in English!)
+        STYLE: \(userProfile.writingStyle.formality)
         
         CURRENT APP: \(systemState.activeApp)
         
         \(contextString)
         
-        CRITICAL RULES:
-        1. You are composing email FOR \(userProfile.name), not to them
-        2. NEVER repeat the intent literally in the email body
-        3. If the intent is vague (e.g., "send email to client"), you MUST:
-           - Look for specific client names, projects, or topics in the CONTEXT
-           - If found: write email about that specific topic
-           - If NOT found: set should_compose_email=false and explain what info is missing
-        4. Write a REAL email that someone could actually send - professional, specific content
-        5. Use context details naturally (names, dates, projects, previous messages)
-        6. NEVER write placeholder text like "[nazwa firmy]" or "[temat]"
-        7. Sign the email as \(userProfile.name) (or just first name)
+        CONTEXT USAGE:
+        - Check [Notification] and [Ocr] for details matching the intent.
+        - If intent is specific (e.g. "email X about Y"), use context only for details about Y or contact info for X.
+        - If intent is vague (e.g. "reply to this"), rely heavily on [Notification] and [Ocr].
+        - DISCARD context that is clearly unrelated to the intent (e.g. old screen content).
         
-        \(hasContext ? """
-        CONTEXT ANALYSIS:
-        - Review the context chunks above carefully
-        - Messages FROM \(userProfile.name) = what the USER wrote
-        - Messages TO/FROM others = conversation partners (potential recipients)
-        - Find: recipient names, email addresses, project names, recent topics, deadlines
-        - Use these details to write a specific, relevant email
-        """ : """
-        NO CONTEXT AVAILABLE:
-        - Cannot compose a specific email without knowing WHO and WHAT
-        - Set should_compose_email=false
-        - Explain what information is needed (recipient, topic, purpose)
-        """)
+        SCENARIO - COLLEAGUE REQUEST (Triangular):
+        - If a [Notification] from Colleague A says "Email Person B about Topic C":
+          -> You are writing TO Person B.
+          -> The topic is Topic C.
+          -> Do NOT say "As requested" (Person B didn't request it, Colleague A did).
+          -> Instead, start directly: "I'm writing to you regarding Topic C..." or "Colleague A mentioned..."
+        
+        CRITICAL - DETERMINE THE GOAL:
+        - Is it a job offer? An inquiry? A status update? A meeting request?
+        - Look at the context to understand the TRUE PURPOSE, but ensure it aligns with USER INTENT.
+        
+        RULES:
+        1. ALWAYS set should_compose_email=true
+        2. Write in ENGLISH only
+        3. ADAPT THE CONTENT TO THE GOAL:
+           - If context: "hire Piotrek" → write JOB OFFER / INQUIRY
+           - If context: "ask about project X" → write QUESTION
+           - If context: "send update to client" → write STATUS UPDATE
+           - If context: "schedule meeting" → write MEETING REQUEST
+        4. If no clear topic/recipient in context:
+           - Set email_body="" (empty) - user fills in
+        5. Sign as \(userProfile.name)
+        6. NEVER use [placeholder] text - use real names or leave empty
         
         RESPOND WITH VALID JSON:
         {
-            "should_compose_email": boolean (false if intent is too vague and no context helps),
-            "inferred_task": "what this email is about based on context",
+            "should_compose_email": true,
+            "inferred_task": "description of what email is about",
             "confidence": 0.0-1.0,
-            "value_added_context_used": ["specific context items used"],
-            "email_subject": "specific subject (not generic)",
-            "email_body": "full email with greeting/closing - REAL TEXT, NOT DESCRIPTION",
-            "recipient": "actual name/email from context, or null",
-            "missing_info": "what's needed if should_compose_email is false"
+            "value_added_context_used": ["list of context items used"],
+            "email_subject": "subject line",
+            "email_body": "full email text OR empty string if no clear context",
+            "recipient": "email address from context or null",
+            "missing_info": null
         }
         """
     }
@@ -235,25 +249,51 @@ final class EmailDraftComposer: ObservableObject {
         }
         
         let systemPrompt = """
-        You are an email composition assistant.
+        You are an email composition assistant. Write in ENGLISH only.
         
-        ABSOLUTE RULES - NEVER BREAK THESE:
-        1. NEVER copy/paste the user's command into email_body
-        2. NEVER put email addresses in the email body text
-        3. If you don't know WHAT to write about → should_compose_email=false
-        4. email_body must be a REAL message someone would send
+        CRITICAL: Prioritize USER INTENT. Use context details ONLY if they support the intent.
         
-        EXAMPLES OF INVALID email_body (NEVER DO THIS):
-        - "Open email app and compose email to X"
-        - "send email to client"
-        - "wyślij mail do X"
-        - Any text containing @ symbol
+        RULES:
+        1. ALWAYS set should_compose_email=true
+        2. Write professional, natural emails in English
+        3. DEDUCE THE GOAL from context, but filtered by the intent.
+        4. If context is unrelated to intent, IGNORE the context.
+        5. If context is unclear → set email_body="" (empty string) so user can fill it
+        6. Extract recipient email from [Notification] context if present AND relevant
+        7. NEVER put placeholder text like [company] or [name]
+        8. AVOID generic "As requested" openers unless the recipient actually requested it.
         
-        EXAMPLE OF VALID email_body:
-        "Dzień dobry,\\n\\nChciałbym umówić się na spotkanie w sprawie projektu.\\n\\nPozdrawiam"
+        EXAMPLE 1 (Colleague Request):
+        Context: Notification from Ari: "Send email to Piotrek about hiring him"
+        Response:
+        {
+            "should_compose_email": true,
+            "email_subject": "Job Opportunity / Hiring",
+            "email_body": "Hi Piotrek,\n\nAri mentioned that we are interested in hiring you... [details from context]",
+            "recipient": "piotrek@example.com"
+        }
+        {
+            "should_compose_email": true,
+            "email_subject": "Regarding Developer Position - Relocation to Poland",
+            "email_body": "Hi Piotrek,\\n\\nIt was great meeting you recently. We are very interested in your profile and would like to discuss a potential role with us.\\n\\nHowever, as mentioned, this position would require relocation to Poland. Is this something you would be open to?\\n\\nBest,\\nFilip",
+            "recipient": "piotrek@example.com"
+        }
+
+        EXAMPLE 2 (Project Update):
+        {
+            "should_compose_email": true,
+            "email_subject": "Update on Project X",
+            "email_body": "Hi Team,\\n\\nJust wanted to let you know that we have finished the initial phase...\\n\\nBest,\\nFilip",
+            "recipient": "team@example.com"
+        }
         
-        If the user's intent is vague (no specific topic/content), return:
-        {"should_compose_email": false, "missing_info": "Specify what the email should be about"}
+        EXAMPLE 3 (No clear context):
+        {
+            "should_compose_email": true,
+            "email_subject": "",
+            "email_body": "",
+            "recipient": null
+        }
         
         Respond ONLY with valid JSON.
         """
