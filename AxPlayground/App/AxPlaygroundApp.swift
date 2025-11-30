@@ -45,7 +45,7 @@ struct AxPlaygroundApp: App {
         }
         .defaultLaunchBehavior(.suppressed)
 
-        MenuBarExtra("AxPlayground", systemImage: "bolt.fill") {
+        MenuBarExtra("vibecodeos", systemImage: "bolt.fill") {
             MenuBarViewNew(
                 taskItems: $taskItems,
                 accessibilityMonitor: accessibilityMonitor,
@@ -230,7 +230,7 @@ struct MenuBarViewNew: View {
             }
             
             VStack(alignment: .leading, spacing: 0) {
-                Text("AxPlayground")
+                Text("vibecodeos")
                     .font(AXTypography.headlineSmall)
                     .foregroundColor(Color.axTextPrimary)
                 
