@@ -160,10 +160,10 @@ struct AxPlaygroundApp: App {
     private func startUserActionMonitoring() {
         UserActionMonitor.shared.startMonitoring { action in
             Task {
-                // Collect to context store
-                await ContextCollector.shared.collectFromUserAction(action: action)
+                // NOTE: We no longer collect accessibility text to context store
+                // OCR handles text collection much better
+                // We only use accessibility for intent analysis (detecting when user types)
                 
-                // Also send to AI for intent analysis (if it's text input)
                 if action.actionType == .textEntered {
                     await AutomationSuggestionService.shared.processAction(
                         actionType: action.actionType.rawValue,
@@ -173,23 +173,21 @@ struct AxPlaygroundApp: App {
                 }
             }
         }
-        print("👁️ User action monitoring started")
+        print("👁️ User action monitoring started (intent analysis only)")
     }
     
     private func startScreenTextMonitoring() {
-        ScreenTextMonitor.shared.startMonitoring(interval: 1.0) { change in
+        // OCR is more CPU intensive, use 3 second interval
+        ScreenTextMonitor.shared.startMonitoring(interval: 3.0) { change in
             Task {
-                // Convert to AXEvent and collect
-                let event = AXEvent(
-                    actionType: "screen_text_\(change.changeType)",
-                    appName: change.appName,
-                    elementRole: nil,
-                    textContent: change.newText
+                // Collect OCR text to context store
+                await ContextCollector.shared.collectFromOCR(
+                    text: change.newText,
+                    appName: change.appName
                 )
-                await ContextCollector.shared.collectFromEvent(event)
             }
         }
-        print("👁️ Screen text monitoring started (1s interval)")
+        print("👁️ OCR screen text monitoring started (3s interval)")
     }
 }
 
@@ -443,6 +441,12 @@ struct MenuBarView: View {
 
     private var actionButtons: some View {
         VStack(alignment: .leading, spacing: 0) {
+            MenuItemButton(title: "🧪 Test Email with ALL Context", systemImage: "envelope.badge.fill") {
+                Task {
+                    await testEmailWithFullContext()
+                }
+            }
+            
             MenuItemButton(title: "Test Mail (AppleScript)", systemImage: "envelope.fill") {
                 MailHelper.openMailApp()
             }
@@ -492,6 +496,86 @@ struct MenuBarView: View {
             message: message,
             icon: "cylinder.fill"
         )
+    }
+    
+    /// Test email composition - shows DB state and triggers real flow
+    private func testEmailWithFullContext() async {
+        print("")
+        print("🧪 ════════════════════════════════════════════")
+        print("🧪 TEST EMAIL - FULL DIAGNOSTIC")
+        print("🧪 ════════════════════════════════════════════")
+        
+        // Step 1: Show what's in DB
+        let dbCount = (try? await ContextStore.shared.count()) ?? 0
+        let recentChunks = (try? await ContextStore.shared.getRecent(source: nil, limit: 10)) ?? []
+        
+        print("🧪 STEP 1: Database state")
+        print("🧪   Total chunks in DB: \(dbCount)")
+        print("🧪   Recent chunks:")
+        for (i, chunk) in recentChunks.enumerated() {
+            let hasEmbedding = chunk.embedding != nil ? "✅" : "❌"
+            print("🧪   [\(i+1)] \(chunk.source.rawValue) \(hasEmbedding) - \(chunk.content.prefix(60))...")
+        }
+        
+        // Step 2: Test intent
+        let testIntent = "napisz email do Kamila o projekcie"
+        print("")
+        print("🧪 STEP 2: Test intent: '\(testIntent)'")
+        
+        // Step 3: Call ContextRetriever directly to see what it finds
+        print("")
+        print("🧪 STEP 3: ContextRetriever searching...")
+        let retrievedChunks = await ContextRetriever.shared.retrieve(intent: testIntent)
+        print("🧪   Found \(retrievedChunks.count) relevant chunks")
+        for (i, chunk) in retrievedChunks.enumerated() {
+            print("🧪   [\(i+1)] \(chunk.source.rawValue): \(chunk.content.prefix(80))...")
+        }
+        
+        // Step 4: Build context string (same as EmailDraftComposer does)
+        let contextString = ContextRetriever.shared.buildContextString(chunks: retrievedChunks)
+        print("")
+        print("🧪 STEP 4: Context string for LLM:")
+        print("🧪 \(contextString.prefix(1000))")
+        
+        // Step 5: Compose email
+        print("")
+        print("🧪 STEP 5: Calling EmailDraftComposer...")
+        
+        if let draft = await EmailDraftComposer.shared.composeEmailDraft(
+            intent: testIntent,
+            recentEvents: [],
+            systemState: SystemState(activeApp: "Slack")
+        ) {
+            print("")
+            print("🧪 ✅ RESULT:")
+            print("🧪   Subject: \(draft.emailSubject)")
+            print("🧪   Body preview: \(draft.emailBody.prefix(200))...")
+            print("🧪   Context used: \(draft.valueAddedContextUsed)")
+            print("🧪   Actionable: \(draft.isActionable)")
+            
+            if draft.isActionable {
+                MailHelper.compose(
+                    to: draft.recipient,
+                    subject: draft.emailSubject,
+                    body: draft.emailBody
+                )
+            } else {
+                NotificationManager.shared.show(
+                    title: "📧 Draft (not actionable)",
+                    message: draft.whyNotComposable ?? "Missing info",
+                    icon: "envelope.badge.exclamationmark"
+                )
+            }
+        } else {
+            print("🧪 ❌ EmailDraftComposer returned nil")
+            NotificationManager.shared.show(
+                title: "❌ Test Failed",
+                message: "Email composition failed",
+                icon: "xmark.circle"
+            )
+        }
+        
+        print("🧪 ════════════════════════════════════════════")
     }
 
     // MARK: - Actions
