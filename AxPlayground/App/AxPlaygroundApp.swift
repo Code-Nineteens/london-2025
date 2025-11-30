@@ -3,6 +3,7 @@
 //  AxPlayground
 //
 //  Created by Kamil Moskała on 29/11/2025.
+//  Redesigned for next-level AI app aesthetic.
 //
 
 import SwiftUI
@@ -45,7 +46,7 @@ struct AxPlaygroundApp: App {
         .defaultLaunchBehavior(.suppressed)
 
         MenuBarExtra("AxPlayground", systemImage: "bolt.fill") {
-            MenuBarView(
+            MenuBarViewNew(
                 taskItems: $taskItems,
                 accessibilityMonitor: accessibilityMonitor,
                 notificationObserver: notificationObserver,
@@ -65,14 +66,12 @@ struct AxPlaygroundApp: App {
             print("📨 Notification received: \(body.prefix(100))")
 
             Task {
-                // Collect context from notification
                 await ContextCollector.shared.collectFromNotification(
                     title: title,
                     body: body,
                     app: title?.components(separatedBy: ",").first ?? "System"
                 )
 
-                // Send to AI for analysis - only send the body content
                 await AutomationSuggestionService.shared.processAction(
                     actionType: "system_notification",
                     appName: title?.components(separatedBy: ",").first ?? "System",
@@ -81,12 +80,9 @@ struct AxPlaygroundApp: App {
             }
         }
 
-        // Auto-start observing
         NotificationCenterObserver.shared.startObserving()
         
-        // Initialize services
         Task {
-            // Configure Anthropic API
             let anthropicKey = EnvManager.shared[.anthropicKey]
             if let key = anthropicKey, !key.isEmpty {
                 print("🔑 Found Anthropic API key")
@@ -95,7 +91,6 @@ struct AxPlaygroundApp: App {
                 print("⚠️ No Anthropic API key found")
             }
             
-            // Configure OpenAI API (for embeddings)
             let openAIKey = EnvManager.shared[.openAIKey]
             if let key = openAIKey, !key.isEmpty {
                 print("🔑 Found OpenAI API key")
@@ -104,18 +99,13 @@ struct AxPlaygroundApp: App {
                 print("⚠️ No OpenAI API key found - embeddings disabled")
             }
             
-            // Start context collection
             await ContextCollector.shared.startCollecting()
             print("🔍 Context collection started")
             
-            // Enable AI suggestions
             AutomationSuggestionService.shared.setEnabled(true)
             print("🤖 AI Suggestions enabled")
             
-            // Start monitoring user actions and collect context
             startUserActionMonitoring()
-            
-            // Start continuous screen text monitoring
             startScreenTextMonitoring()
         }
     }
@@ -123,10 +113,6 @@ struct AxPlaygroundApp: App {
     private func startUserActionMonitoring() {
         UserActionMonitor.shared.startMonitoring { action in
             Task {
-                // NOTE: We no longer collect accessibility text to context store
-                // OCR handles text collection much better
-                // We only use accessibility for intent analysis (detecting when user types)
-                
                 if action.actionType == .textEntered {
                     await AutomationSuggestionService.shared.processAction(
                         actionType: action.actionType.rawValue,
@@ -140,10 +126,8 @@ struct AxPlaygroundApp: App {
     }
     
     private func startScreenTextMonitoring() {
-        // OCR is more CPU intensive, use 3 second interval
         ScreenTextMonitor.shared.startMonitoring(interval: 3.0) { change in
             Task {
-                // Collect OCR text to context store
                 await ContextCollector.shared.collectFromOCR(
                     text: change.newText,
                     appName: change.appName
@@ -180,9 +164,9 @@ struct AxPlaygroundApp: App {
     }
 }
 
-// MARK: - Menu Bar View
+// MARK: - Menu Bar View (Redesigned)
 
-struct MenuBarView: View {
+struct MenuBarViewNew: View {
 
     @Binding var taskItems: [TaskItem]
     @ObservedObject var accessibilityMonitor: AccessibilityMonitor
@@ -194,290 +178,369 @@ struct MenuBarView: View {
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            monitoringToggles
+        VStack(spacing: 0) {
+            // Header
+            menuHeader
+            
             Divider()
-                .padding(.vertical, 6)
-            taskQueueSection
+                .background(Color.axBorder)
+            
+            ScrollView {
+                VStack(spacing: AXSpacing.sm) {
+                    // Quick Status
+                    quickStatusSection
+                    
+                    // Monitoring Controls
+                    monitoringSection
+                    
+                    // AI Section
+                    aiSection
+                    
+                    // Task Queue Preview
+                    taskQueueSection
+                    
+                    // Quick Actions
+                    quickActionsSection
+                }
+                .padding(AXSpacing.md)
+            }
+            
             Divider()
-                .padding(.vertical, 6)
-            actionButtons
+                .background(Color.axBorder)
+            
+            // Footer
+            menuFooter
         }
-        .padding(.vertical, 8)
-        .padding(.horizontal, 6)
-        .frame(width: 320)
+        .frame(width: 340, height: 520)
+        .background(Color.axSurface)
     }
-
-    // MARK: - Sections
-
-    private var monitoringToggles: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            MenuItemButton(
-                title: accessibilityMonitor.isMonitoring ? "Pause Monitoring" : "Resume Monitoring",
-                systemImage: accessibilityMonitor.isMonitoring ? "pause.fill" : "play.fill"
-            ) {
-                if accessibilityMonitor.isMonitoring {
-                    accessibilityMonitor.stopMonitoring()
-                } else {
-                    accessibilityMonitor.startMonitoring()
-                }
-            }
-
-            MenuItemButton(
-                title: notificationObserver.isObserving ? "Stop Notification Observer" : "Start Notification Observer",
-                systemImage: notificationObserver.isObserving ? "bell.slash.fill" : "bell.fill"
-            ) {
-                if notificationObserver.isObserving {
-                    notificationObserver.stopObserving()
-                } else {
-                    notificationObserver.startObserving()
-                }
-            }
-
-            MenuItemButton(
-                title: screenTextMonitor.isMonitoring ? "Stop Screen Monitor" : "Start Screen Monitor",
-                systemImage: screenTextMonitor.isMonitoring ? "eye.slash.fill" : "eye.fill"
-            ) {
-                if screenTextMonitor.isMonitoring {
-                    screenTextMonitor.stopMonitoring()
-                } else {
-                    screenTextMonitor.startMonitoring { change in
-                        print("📝 Text change: \(change.changeType) in \(change.appName): \(change.newText.prefix(50))")
-                    }
-                }
-            }
-
-            MenuItemButton(
-                title: actionMonitor.isMonitoring ? "Stop Action Log" : "Start Action Log",
-                systemImage: actionMonitor.isMonitoring ? "stop.circle.fill" : "play.circle.fill"
-            ) {
-                if actionMonitor.isMonitoring {
-                    actionMonitor.stopMonitoring()
-                } else {
-                    actionMonitor.startMonitoring { action in
-                        let icon: String
-                        switch action.actionType {
-                        case .appLaunched: icon = "app.badge.fill"
-                        case .appActivated: icon = "macwindow"
-                        case .appQuit: icon = "xmark.app.fill"
-                        case .buttonClicked: icon = "hand.tap.fill"
-                        case .textEntered: icon = "keyboard.fill"
-                        case .focusChanged: icon = "eye.fill"
-                        case .menuSelected: icon = "list.bullet"
-                        case .windowOpened: icon = "macwindow.badge.plus"
-                        case .windowClosed: icon = "macwindow.badge.minus"
-                        }
-                        
-                        NotificationManager.shared.show(
-                            title: "\(action.actionType.rawValue) \(action.appName)",
-                            message: action.details,
-                            icon: icon
-                        )
-                        
-                        // Log to unified activity logger if it's running
-                        ScreenActivityLogger.shared.logUserAction(action)
-                    }
-                }
+    
+    // MARK: - Header
+    
+    private var menuHeader: some View {
+        HStack(spacing: AXSpacing.md) {
+            ZStack {
+                Circle()
+                    .fill(AXGradients.primary)
+                    .frame(width: 32, height: 32)
+                
+                Image(systemName: "bolt.fill")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(.white)
             }
             
-            MenuItemButton(
-                title: activityLogger.isLogging ? "Stop Full Activity Log" : "Start Full Activity Log",
-                systemImage: activityLogger.isLogging ? "stop.circle.fill" : "record.circle"
-            ) {
-                if activityLogger.isLogging {
-                    activityLogger.stopLogging()
-                } else {
-                    activityLogger.startLogging()
-                    
-                    // Also start action monitor if not already running
-                    if !actionMonitor.isMonitoring {
-                        actionMonitor.startMonitoring { action in
-                            ScreenActivityLogger.shared.logUserAction(action)
-                        }
-                    }
-                    
-                    // Show notification with log file path
-                    if let logPath = activityLogger.logFilePath {
-                        NotificationManager.shared.show(
-                            title: "📝 Activity Logging Started",
-                            message: "Saving to: \(logPath.components(separatedBy: "/").last ?? "log file")",
-                            icon: "doc.text.fill"
-                        )
-                    }
-                }
+            VStack(alignment: .leading, spacing: 0) {
+                Text("AxPlayground")
+                    .font(AXTypography.headlineSmall)
+                    .foregroundStyle(.axTextPrimary)
+                
+                Text("AI Assistant")
+                    .font(AXTypography.labelSmall)
+                    .foregroundStyle(.axTextTertiary)
             }
             
-            MenuItemButton(
-                title: TextChangesOverlayController.shared.isVisible ? "Hide Text Changes Overlay" : "Show Text Changes Overlay",
-                systemImage: TextChangesOverlayController.shared.isVisible ? "eye.slash.fill" : "eye.fill"
-            ) {
-                TextChangesOverlayController.shared.toggle()
-            }
+            Spacer()
             
-            Divider()
-                .padding(.vertical, 4)
-            
-            // AI Automation Suggestions
-            MenuItemButton(
-                title: automationService.isEnabled ? "Disable AI Suggestions" : "Enable AI Suggestions",
-                systemImage: automationService.isEnabled ? "wand.and.stars.inverse" : "wand.and.stars"
-            ) {
-                Task {
-                    if automationService.isEnabled {
-                        automationService.setEnabled(false)
-                    } else {
-                        let isReady = await automationService.isReady
-                        if !isReady {
-                            // API key should be set via environment variable ANTHROPIC_API_KEY
-                            if let envKey = EnvManager.shared[.anthropicKey] {
-                                await automationService.configureAPIKey(envKey)
-                            } else {
-                                print("⚠️ No ANTHROPIC_API_KEY environment variable set")
-                            }
-                        }
-                        
-                        automationService.setEnabled(true)
-                        
-                        // Start action monitor with AI processing
-                        if !actionMonitor.isMonitoring {
-                            actionMonitor.startMonitoring { action in
-                                Task {
-                                    await AutomationSuggestionService.shared.processAction(
-                                        actionType: action.rawNotification ?? "unknown",
-                                        appName: action.appName,
-                                        details: action.details
-                                    )
-                                }
-                                ScreenActivityLogger.shared.logUserAction(action)
-                            }
-                        }
-                        
-                        NotificationManager.shared.show(
-                            title: "🤖 AI Suggestions Enabled",
-                            message: "Analyzing your actions for automation opportunities",
-                            icon: "wand.and.stars"
-                        )
-                    }
-                }
+            // Status indicator
+            HStack(spacing: AXSpacing.xs) {
+                Circle()
+                    .fill(automationService.isEnabled ? Color.axSuccess : Color.axTextTertiary)
+                    .frame(width: 6, height: 6)
+                    .shadow(color: automationService.isEnabled ? .axSuccess.opacity(0.6) : .clear, radius: 4)
+                
+                Text(automationService.isEnabled ? "Active" : "Idle")
+                    .font(AXTypography.labelSmall)
+                    .foregroundStyle(.axTextSecondary)
             }
+            .padding(.horizontal, AXSpacing.sm)
+            .padding(.vertical, AXSpacing.xs)
+            .background(
+                Capsule()
+                    .fill(Color.axSurfaceElevated)
+            )
+        }
+        .padding(AXSpacing.lg)
+    }
+    
+    // MARK: - Quick Status
+    
+    private var quickStatusSection: some View {
+        HStack(spacing: AXSpacing.sm) {
+            StatusPill(
+                icon: accessibilityMonitor.isMonitoring ? "eye.fill" : "eye.slash",
+                label: "Monitor",
+                isActive: accessibilityMonitor.isMonitoring
+            )
             
-            if automationService.isEnabled {
-                Text(automationService.statistics)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 8)
-            }
+            StatusPill(
+                icon: notificationObserver.isObserving ? "bell.fill" : "bell.slash",
+                label: "Alerts",
+                isActive: notificationObserver.isObserving
+            )
+            
+            StatusPill(
+                icon: screenTextMonitor.isMonitoring ? "doc.text.fill" : "doc.text",
+                label: "OCR",
+                isActive: screenTextMonitor.isMonitoring
+            )
         }
     }
-
-    private let maxVisibleTasks = 5
-
-    private var visibleItems: [Binding<TaskItem>] {
-        Array($taskItems.prefix(maxVisibleTasks))
-    }
-
-    private var hasMoreTasks: Bool {
-        taskItems.count > maxVisibleTasks
-    }
-
-    private var remainingTasksCount: Int {
-        taskItems.count - maxVisibleTasks
-    }
-
-    private var taskQueueSection: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                Text("TASK QUEUE")
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                    .foregroundStyle(.secondary)
-
-                Spacer()
-
-                Text("\(taskItems.count)")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(Color.secondary.opacity(0.2))
-                    .cornerRadius(4)
-            }
-            .padding(.horizontal, 8)
-            .padding(.bottom, 4)
-
-            ForEach(visibleItems) { $item in
-                TaskItemRow(
-                    item: $item,
-                    onRun: { runTask(item) },
-                    onDelete: { deleteTask(item) }
+    
+    // MARK: - Monitoring Section
+    
+    private var monitoringSection: some View {
+        VStack(alignment: .leading, spacing: AXSpacing.sm) {
+            SectionHeader(title: "MONITORING")
+            
+            VStack(spacing: 2) {
+                MenuToggleRow(
+                    title: "Accessibility Monitor",
+                    icon: "eye.fill",
+                    isOn: accessibilityMonitor.isMonitoring,
+                    onToggle: {
+                        if accessibilityMonitor.isMonitoring {
+                            accessibilityMonitor.stopMonitoring()
+                        } else {
+                            accessibilityMonitor.startMonitoring()
+                        }
+                    }
                 )
-            }
-
-            if hasMoreTasks {
-                showMoreButton
-            }
-        }
-    }
-
-    private var showMoreButton: some View {
-        MenuItemButton(
-            title: "Show \(remainingTasksCount) more...",
-            systemImage: "ellipsis.circle"
-        ) {
-            TaskQueueWindowController.shared.show(taskItems: $taskItems)
-        }
-    }
-
-    private var actionButtons: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            MenuItemButton(title: "🧪 Test Email with ALL Context", systemImage: "envelope.badge.fill") {
-                Task {
-                    await testEmailWithFullContext()
-                }
-            }
-            
-            MenuItemButton(title: "Test Mail (AppleScript)", systemImage: "envelope.fill") {
-                MailHelper.openMailApp()
-            }
-            
-            MenuItemButton(title: "View Context Stats", systemImage: "cylinder.fill") {
-                Task {
-                    await showContextStats()
-                }
-            }
-            
-            MenuItemButton(title: "Open Dashboard", systemImage: "macwindow") {
-                openWindow(id: "dashboard")
-                NSApp.activate(ignoringOtherApps: true)
-            }
-
-            MenuItemButton(title: "Run Devin", systemImage: "cpu") {
-                Task {
-                    do {
-                        let session = try await DevinHelper.solveIssue(issueURL: "https://github.com/Code-Nineteens/london-2025/issues/7")
-                        print("✅ Devin session created: \(session.sessionId)")
-                    } catch {
-                        print("❌ Devin error: \(error.localizedDescription)")
-                    }
-                }
-            }
-
-            MenuItemButton(title: "Show Notification", systemImage: "bell.fill") {
-                NSApp.keyWindow?.close()
-                NotificationManager.shared.show(
-                    title: "Test Notification",
-                    message: "This is a test notification from the dev menu.",
+                
+                MenuToggleRow(
+                    title: "Notification Observer",
                     icon: "bell.fill",
-                    onAddToQueue: {
-                        TaskQueueWindowController.shared.show(taskItems: $taskItems)
+                    isOn: notificationObserver.isObserving,
+                    onToggle: {
+                        if notificationObserver.isObserving {
+                            notificationObserver.stopObserving()
+                        } else {
+                            notificationObserver.startObserving()
+                        }
+                    }
+                )
+                
+                MenuToggleRow(
+                    title: "Screen Text (OCR)",
+                    icon: "doc.text.viewfinder",
+                    isOn: screenTextMonitor.isMonitoring,
+                    onToggle: {
+                        if screenTextMonitor.isMonitoring {
+                            screenTextMonitor.stopMonitoring()
+                        } else {
+                            screenTextMonitor.startMonitoring { change in
+                                print("📝 Text change: \(change.changeType) in \(change.appName)")
+                            }
+                        }
+                    }
+                )
+                
+                MenuToggleRow(
+                    title: "Activity Logger",
+                    icon: "list.bullet.rectangle",
+                    isOn: activityLogger.isLogging,
+                    onToggle: {
+                        if activityLogger.isLogging {
+                            activityLogger.stopLogging()
+                        } else {
+                            activityLogger.startLogging()
+                            if !actionMonitor.isMonitoring {
+                                actionMonitor.startMonitoring { action in
+                                    ScreenActivityLogger.shared.logUserAction(action)
+                                }
+                            }
+                        }
                     }
                 )
             }
-
-            MenuItemButton(title: "Quit", systemImage: "power") {
-                NSApplication.shared.terminate(nil)
+            .axCard()
+        }
+    }
+    
+    // MARK: - AI Section
+    
+    private var aiSection: some View {
+        VStack(alignment: .leading, spacing: AXSpacing.sm) {
+            SectionHeader(title: "AI ASSISTANT")
+            
+            VStack(spacing: AXSpacing.sm) {
+                // AI Toggle with special styling
+                HStack {
+                    HStack(spacing: AXSpacing.md) {
+                        ZStack {
+                            Circle()
+                                .fill(automationService.isEnabled ? Color.axPrimary.opacity(0.2) : Color.axSurfaceElevated)
+                                .frame(width: 36, height: 36)
+                            
+                            Image(systemName: "wand.and.stars")
+                                .font(.system(size: 16))
+                                .foregroundStyle(automationService.isEnabled ? .axPrimary : .axTextTertiary)
+                        }
+                        
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("AI Suggestions")
+                                .font(AXTypography.bodyMedium)
+                                .foregroundStyle(.axTextPrimary)
+                            
+                            Text(automationService.isEnabled ? "Analyzing actions" : "Disabled")
+                                .font(AXTypography.labelSmall)
+                                .foregroundStyle(.axTextTertiary)
+                        }
+                    }
+                    
+                    Spacer()
+                    
+                    Toggle("", isOn: Binding(
+                        get: { automationService.isEnabled },
+                        set: { newValue in
+                            Task {
+                                if newValue {
+                                    let isReady = await automationService.isReady
+                                    if !isReady {
+                                        if let envKey = EnvManager.shared[.anthropicKey] {
+                                            await automationService.configureAPIKey(envKey)
+                                        }
+                                    }
+                                    automationService.setEnabled(true)
+                                } else {
+                                    automationService.setEnabled(false)
+                                }
+                            }
+                        }
+                    ))
+                    .toggleStyle(.switch)
+                    .tint(.axPrimary)
+                }
+                .padding(AXSpacing.md)
+                .background(
+                    RoundedRectangle(cornerRadius: AXRadius.md)
+                        .fill(Color.axSurface)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: AXRadius.md)
+                                .stroke(automationService.isEnabled ? Color.axPrimary.opacity(0.3) : Color.axBorder, lineWidth: 1)
+                        )
+                )
+                
+                if automationService.isEnabled {
+                    Text(automationService.statistics)
+                        .font(AXTypography.monoSmall)
+                        .foregroundStyle(.axTextTertiary)
+                        .padding(.horizontal, AXSpacing.sm)
+                }
             }
         }
+    }
+    
+    // MARK: - Task Queue Section
+    
+    private let maxVisibleTasks = 3
+    
+    private var taskQueueSection: some View {
+        VStack(alignment: .leading, spacing: AXSpacing.sm) {
+            HStack {
+                SectionHeader(title: "TASK QUEUE")
+                
+                Spacer()
+                
+                Text("\(taskItems.count)")
+                    .font(AXTypography.mono)
+                    .foregroundStyle(.axTextTertiary)
+                    .padding(.horizontal, AXSpacing.sm)
+                    .padding(.vertical, AXSpacing.xxs)
+                    .background(
+                        Capsule()
+                            .fill(Color.axSurfaceElevated)
+                    )
+            }
+            
+            VStack(spacing: 2) {
+                ForEach(Array($taskItems.prefix(maxVisibleTasks))) { $item in
+                    TaskRowCompact(
+                        item: $item,
+                        onRun: { runTask(item) },
+                        onDelete: { deleteTask(item) }
+                    )
+                }
+                
+                if taskItems.count > maxVisibleTasks {
+                    Button {
+                        TaskQueueWindowController.shared.show(taskItems: $taskItems)
+                    } label: {
+                        HStack {
+                            Image(systemName: "ellipsis")
+                                .font(.system(size: 12))
+                            Text("Show \(taskItems.count - maxVisibleTasks) more")
+                                .font(AXTypography.labelMedium)
+                        }
+                        .foregroundStyle(.axTextSecondary)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, AXSpacing.sm)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .axCard()
+        }
+    }
+    
+    // MARK: - Quick Actions
+    
+    private var quickActionsSection: some View {
+        VStack(alignment: .leading, spacing: AXSpacing.sm) {
+            SectionHeader(title: "QUICK ACTIONS")
+            
+            VStack(spacing: 2) {
+                MenuActionRow(title: "Test Email", icon: "envelope.fill", accent: true) {
+                    Task { await testEmailWithFullContext() }
+                }
+                
+                MenuActionRow(title: "View Context Stats", icon: "cylinder.fill") {
+                    Task { await showContextStats() }
+                }
+                
+                MenuActionRow(title: "Open Dashboard", icon: "macwindow") {
+                    openWindow(id: "dashboard")
+                    NSApp.activate(ignoringOtherApps: true)
+                }
+            }
+            .axCard()
+        }
+    }
+    
+    // MARK: - Footer
+    
+    private var menuFooter: some View {
+        HStack {
+            Button {
+                NSApplication.shared.terminate(nil)
+            } label: {
+                HStack(spacing: AXSpacing.xs) {
+                    Image(systemName: "power")
+                        .font(.system(size: 11))
+                    Text("Quit")
+                        .font(AXTypography.labelMedium)
+                }
+                .foregroundStyle(.axTextSecondary)
+            }
+            .buttonStyle(.plain)
+            
+            Spacer()
+            
+            Text("v1.0")
+                .font(AXTypography.labelSmall)
+                .foregroundStyle(.axTextTertiary)
+        }
+        .padding(AXSpacing.md)
+    }
+    
+    // MARK: - Actions
+    
+    private func runTask(_ item: TaskItem) {
+        guard let index = taskItems.firstIndex(where: { $0.id == item.id }) else { return }
+        taskItems[index].status = .inProgress
+    }
+
+    private func deleteTask(_ item: TaskItem) {
+        taskItems.removeAll { $0.id == item.id }
     }
     
     private func showContextStats() async {
@@ -498,61 +561,16 @@ struct MenuBarView: View {
         )
     }
     
-    /// Test email composition - shows DB state and triggers real flow
     private func testEmailWithFullContext() async {
-        print("")
-        print("🧪 ════════════════════════════════════════════")
-        print("🧪 TEST EMAIL - FULL DIAGNOSTIC")
-        print("🧪 ════════════════════════════════════════════")
+        print("🧪 Testing email composition...")
         
-        // Step 1: Show what's in DB
-        let dbCount = (try? await ContextStore.shared.count()) ?? 0
-        let recentChunks = (try? await ContextStore.shared.getRecent(source: nil, limit: 10)) ?? []
-        
-        print("🧪 STEP 1: Database state")
-        print("🧪   Total chunks in DB: \(dbCount)")
-        print("🧪   Recent chunks:")
-        for (i, chunk) in recentChunks.enumerated() {
-            let hasEmbedding = chunk.embedding != nil ? "✅" : "❌"
-            print("🧪   [\(i+1)] \(chunk.source.rawValue) \(hasEmbedding) - \(chunk.content.prefix(60))...")
-        }
-        
-        // Step 2: Test intent
         let testIntent = "napisz email do Kamila o projekcie"
-        print("")
-        print("🧪 STEP 2: Test intent: '\(testIntent)'")
-        
-        // Step 3: Call ContextRetriever directly to see what it finds
-        print("")
-        print("🧪 STEP 3: ContextRetriever searching...")
-        let retrievedChunks = await ContextRetriever.shared.retrieve(intent: testIntent)
-        print("🧪   Found \(retrievedChunks.count) relevant chunks")
-        for (i, chunk) in retrievedChunks.enumerated() {
-            print("🧪   [\(i+1)] \(chunk.source.rawValue): \(chunk.content.prefix(80))...")
-        }
-        
-        // Step 4: Build context string (same as EmailDraftComposer does)
-        let contextString = ContextRetriever.shared.buildContextString(chunks: retrievedChunks)
-        print("")
-        print("🧪 STEP 4: Context string for LLM:")
-        print("🧪 \(contextString.prefix(1000))")
-        
-        // Step 5: Compose email
-        print("")
-        print("🧪 STEP 5: Calling EmailDraftComposer...")
         
         if let draft = await EmailDraftComposer.shared.composeEmailDraft(
             intent: testIntent,
             recentEvents: [],
             systemState: SystemState(activeApp: "Slack")
         ) {
-            print("")
-            print("🧪 ✅ RESULT:")
-            print("🧪   Subject: \(draft.emailSubject)")
-            print("🧪   Body preview: \(draft.emailBody.prefix(200))...")
-            print("🧪   Context used: \(draft.valueAddedContextUsed)")
-            print("🧪   Actionable: \(draft.isActionable)")
-            
             if draft.isActionable {
                 MailHelper.compose(
                     to: draft.recipient,
@@ -567,134 +585,214 @@ struct MenuBarView: View {
                 )
             }
         } else {
-            print("🧪 ❌ EmailDraftComposer returned nil")
             NotificationManager.shared.show(
                 title: "❌ Test Failed",
                 message: "Email composition failed",
                 icon: "xmark.circle"
             )
         }
-        
-        print("🧪 ════════════════════════════════════════════")
-    }
-
-    // MARK: - Actions
-
-    private func runTask(_ item: TaskItem) {
-        guard let index = taskItems.firstIndex(where: { $0.id == item.id }) else { return }
-        taskItems[index].status = .inProgress
-        print("Running task: \(item.title)")
-    }
-
-    private func deleteTask(_ item: TaskItem) {
-        taskItems.removeAll { $0.id == item.id }
-        print("Deleted task: \(item.title)")
     }
 }
 
-// MARK: - Task Item Row
+// MARK: - Supporting Components
 
-struct TaskItemRow: View {
-
-    @Binding var item: TaskItem
-    let onRun: () -> Void
-    let onDelete: () -> Void
-
-    @State private var isHovered = false
-
+struct StatusPill: View {
+    let icon: String
+    let label: String
+    let isActive: Bool
+    
     var body: some View {
-        HStack(spacing: 8) {
-            statusIndicator
-            titleText
-            Spacer()
-            if isHovered {
-                actionButtons
-            }
+        HStack(spacing: AXSpacing.xs) {
+            Image(systemName: icon)
+                .font(.system(size: 10))
+            Text(label)
+                .font(AXTypography.labelSmall)
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 6)
-        .background(isHovered ? Color.primary.opacity(0.1) : Color.clear)
-        .cornerRadius(4)
+        .foregroundStyle(isActive ? .axTextPrimary : .axTextTertiary)
+        .padding(.horizontal, AXSpacing.sm)
+        .padding(.vertical, AXSpacing.xs)
+        .frame(maxWidth: .infinity)
+        .background(
+            RoundedRectangle(cornerRadius: AXRadius.sm)
+                .fill(isActive ? Color.axPrimary.opacity(0.15) : Color.axSurfaceElevated)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: AXRadius.sm)
+                .stroke(isActive ? Color.axPrimary.opacity(0.3) : Color.clear, lineWidth: 1)
+        )
+    }
+}
+
+struct SectionHeader: View {
+    let title: String
+    
+    var body: some View {
+        Text(title)
+            .font(AXTypography.labelSmall)
+            .foregroundStyle(.axTextTertiary)
+            .tracking(1)
+    }
+}
+
+struct MenuToggleRow: View {
+    let title: String
+    let icon: String
+    let isOn: Bool
+    let onToggle: () -> Void
+    
+    @State private var isHovered = false
+    
+    var body: some View {
+        Button(action: onToggle) {
+            HStack(spacing: AXSpacing.md) {
+                Image(systemName: icon)
+                    .font(.system(size: 13))
+                    .foregroundStyle(isOn ? .axPrimary : .axTextTertiary)
+                    .frame(width: 20)
+                
+                Text(title)
+                    .font(AXTypography.bodyMedium)
+                    .foregroundStyle(.axTextPrimary)
+                
+                Spacer()
+                
+                Circle()
+                    .fill(isOn ? Color.axSuccess : Color.axTextTertiary.opacity(0.3))
+                    .frame(width: 8, height: 8)
+            }
+            .padding(.horizontal, AXSpacing.md)
+            .padding(.vertical, AXSpacing.sm)
+            .background(isHovered ? Color.axSurfaceElevated : Color.clear)
+        }
+        .buttonStyle(.plain)
         .onHover { hovering in
-            withAnimation(.easeInOut(duration: 0.15)) {
+            withAnimation(.easeOut(duration: 0.1)) {
                 isHovered = hovering
             }
         }
     }
+}
 
-    // MARK: - Subviews
-
-    private var statusIndicator: some View {
-        Image(systemName: item.status.iconName)
-            .font(.system(size: 12))
-            .foregroundStyle(item.status.color)
-            .frame(width: 14)
-    }
-
-    private var titleText: some View {
-        Text(item.title)
-            .font(.body)
-            .foregroundStyle(.primary)
-            .lineLimit(1)
-    }
-
-    private var actionButtons: some View {
-        HStack(spacing: 4) {
-            if item.status == .idle {
-                Button(action: onRun) {
-                    Image(systemName: "play.circle.fill")
-                        .font(.system(size: 16))
-                        .foregroundStyle(.blue)
-                }
-                .buttonStyle(.plain)
-                .help("Run now")
+struct MenuActionRow: View {
+    let title: String
+    let icon: String
+    var accent: Bool = false
+    let action: () -> Void
+    
+    @State private var isHovered = false
+    
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: AXSpacing.md) {
+                Image(systemName: icon)
+                    .font(.system(size: 13))
+                    .foregroundStyle(accent ? .axPrimary : .axTextSecondary)
+                    .frame(width: 20)
+                
+                Text(title)
+                    .font(AXTypography.bodyMedium)
+                    .foregroundStyle(.axTextPrimary)
+                
+                Spacer()
+                
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.axTextTertiary)
             }
-
-            Button(action: onDelete) {
-                Image(systemName: "trash.circle.fill")
-                    .font(.system(size: 16))
-                    .foregroundStyle(.red.opacity(0.8))
+            .padding(.horizontal, AXSpacing.md)
+            .padding(.vertical, AXSpacing.sm)
+            .background(isHovered ? Color.axSurfaceElevated : Color.clear)
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering in
+            withAnimation(.easeOut(duration: 0.1)) {
+                isHovered = hovering
             }
-            .buttonStyle(.plain)
-            .help("Delete")
         }
     }
 }
 
-// MARK: - Menu Item Button
+struct TaskRowCompact: View {
+    @Binding var item: TaskItem
+    let onRun: () -> Void
+    let onDelete: () -> Void
+    
+    @State private var isHovered = false
+    
+    var body: some View {
+        HStack(spacing: AXSpacing.sm) {
+            Circle()
+                .fill(item.status.color)
+                .frame(width: 6, height: 6)
+            
+            Text(item.title)
+                .font(AXTypography.bodySmall)
+                .foregroundStyle(.axTextPrimary)
+                .lineLimit(1)
+            
+            Spacer()
+            
+            if isHovered {
+                HStack(spacing: AXSpacing.xs) {
+                    if item.status == .idle {
+                        AXIconButton(icon: "play.fill", action: onRun, size: 22)
+                    }
+                    AXIconButton(icon: "trash", action: onDelete, size: 22, isDestructive: true)
+                }
+            }
+        }
+        .padding(.horizontal, AXSpacing.md)
+        .padding(.vertical, AXSpacing.sm)
+        .background(isHovered ? Color.axSurfaceElevated : Color.clear)
+        .onHover { hovering in
+            withAnimation(.easeOut(duration: 0.1)) {
+                isHovered = hovering
+            }
+        }
+    }
+}
+
+// Keep old view for compatibility
+struct MenuBarView: View {
+    @Binding var taskItems: [TaskItem]
+    @ObservedObject var accessibilityMonitor: AccessibilityMonitor
+    @ObservedObject var notificationObserver: NotificationCenterObserver
+    @ObservedObject var screenTextMonitor: ScreenTextMonitor
+    @ObservedObject var actionMonitor: UserActionMonitor
+    @ObservedObject var activityLogger: ScreenActivityLogger
+    @ObservedObject var automationService: AutomationSuggestionService
+    
+    var body: some View {
+        MenuBarViewNew(
+            taskItems: $taskItems,
+            accessibilityMonitor: accessibilityMonitor,
+            notificationObserver: notificationObserver,
+            screenTextMonitor: screenTextMonitor,
+            actionMonitor: actionMonitor,
+            activityLogger: activityLogger,
+            automationService: automationService
+        )
+    }
+}
+
+// Keep old components for compatibility
+struct TaskItemRow: View {
+    @Binding var item: TaskItem
+    let onRun: () -> Void
+    let onDelete: () -> Void
+    
+    var body: some View {
+        TaskRowCompact(item: $item, onRun: onRun, onDelete: onDelete)
+    }
+}
 
 struct MenuItemButton: View {
-
     let title: String
     var systemImage: String? = nil
     var fontWeight: Font.Weight = .regular
     let action: () -> Void
-
-    @State private var isHovered = false
-
+    
     var body: some View {
-        Button(action: action) {
-            HStack(spacing: 8) {
-                if let systemImage {
-                    Image(systemName: systemImage)
-                        .font(.body)
-                        .foregroundStyle(.primary)
-                        .frame(width: 16)
-                }
-                Text(title)
-                    .font(.body)
-                    .fontWeight(fontWeight)
-                    .foregroundStyle(.primary)
-                Spacer()
-            }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(isHovered ? Color.primary.opacity(0.1) : Color.clear)
-            .cornerRadius(4)
-        }
-        .buttonStyle(.plain)
-        .onHover { hovering in
-            isHovered = hovering
-        }
+        MenuActionRow(title: title, icon: systemImage ?? "circle", action: action)
     }
 }

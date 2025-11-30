@@ -3,6 +3,7 @@
 //  AxPlayground
 //
 //  Created by Kamil Moskała on 29/11/2025.
+//  Redesigned with next-level AI aesthetic.
 //
 
 import SwiftUI
@@ -13,7 +14,7 @@ struct DynamicIslandView: View {
     let icon: String?
     let onClose: (() -> Void)?
     var onInsertNow: (() -> Void)? = nil
-    var actionButtonTitle: String = "Insert Now"
+    var actionButtonTitle: String = "Execute"
     var actionButtonIcon: String = "sparkles"
 
     @Binding var isVisible: Bool
@@ -21,13 +22,14 @@ struct DynamicIslandView: View {
     @State private var isHovering = false
     @State private var animationProgress: CGFloat = 0.0
     @State private var contentOpacity: CGFloat = 0.0
+    @State private var glowIntensity: CGFloat = 0.3
 
     // Dimensions
-    private let expandedWidth: CGFloat = 380
-    private let expandedHeight: CGFloat = 160
-    private let collapsedWidth: CGFloat = 180  // MacBook notch width approx
-    private let collapsedHeight: CGFloat = 32  // MacBook notch height approx
-    private let cornerRadius: CGFloat = 28
+    private let expandedWidth: CGFloat = 400
+    private let expandedHeight: CGFloat = 180
+    private let collapsedWidth: CGFloat = 180
+    private let collapsedHeight: CGFloat = 32
+    private let cornerRadius: CGFloat = 32
 
     private var currentWidth: CGFloat {
         collapsedWidth + (expandedWidth - collapsedWidth) * animationProgress
@@ -47,14 +49,45 @@ struct DynamicIslandView: View {
 
     var body: some View {
         ZStack(alignment: .top) {
-            // Background with inverted top corners and rounded bottom corners
-            DynamicIslandShape(
-                bottomCornerRadius: currentCornerRadius,
-                topInvertedRadius: currentTopInvertedRadius
-            )
-            .fill(.black)
-            .shadow(color: .black.opacity(0.4 * animationProgress), radius: 16, x: 0, y: 8)
-            .frame(width: currentWidth + (currentTopInvertedRadius * 2), height: currentHeight)
+            // Background with glow effect
+            ZStack {
+                // Outer glow
+                DynamicIslandShape(
+                    bottomCornerRadius: currentCornerRadius,
+                    topInvertedRadius: currentTopInvertedRadius
+                )
+                .fill(Color.axPrimary.opacity(0.15 * animationProgress))
+                .blur(radius: 20)
+                .frame(width: currentWidth + (currentTopInvertedRadius * 2) + 20, height: currentHeight + 10)
+                
+                // Main background
+                DynamicIslandShape(
+                    bottomCornerRadius: currentCornerRadius,
+                    topInvertedRadius: currentTopInvertedRadius
+                )
+                .fill(Color.axBackground)
+                .overlay(
+                    // Gradient border
+                    DynamicIslandShape(
+                        bottomCornerRadius: currentCornerRadius,
+                        topInvertedRadius: currentTopInvertedRadius
+                    )
+                    .stroke(
+                        LinearGradient(
+                            stops: [
+                                .init(color: Color.axPrimary.opacity(0.5 * animationProgress), location: 0),
+                                .init(color: Color.axBorder.opacity(0.3), location: 0.3),
+                                .init(color: Color.axAccent.opacity(0.3 * animationProgress), location: 1)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: 1
+                    )
+                )
+                .shadow(color: .black.opacity(0.5 * animationProgress), radius: 20, x: 0, y: 10)
+                .frame(width: currentWidth + (currentTopInvertedRadius * 2), height: currentHeight)
+            }
 
             // Content
             expandedContent
@@ -64,26 +97,29 @@ struct DynamicIslandView: View {
         .frame(width: expandedWidth + (cornerRadius * 2), height: expandedHeight, alignment: .top)
         .onHover { hovering in
             isHovering = hovering
+            withAnimation(.easeInOut(duration: 0.3)) {
+                glowIntensity = hovering ? 0.5 : 0.3
+            }
         }
         .onAppear {
-            // First animate island
-            withAnimation(.timingCurve(0.76, 0, 0.24, 1, duration: 0.4)) {
+            // Animate island expansion
+            withAnimation(.timingCurve(0.76, 0, 0.24, 1, duration: 0.5)) {
                 animationProgress = 1.0
             }
-            // Then fade in content after island is fully visible
+            // Fade in content
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-                withAnimation(.easeOut(duration: 0.2)) {
+                withAnimation(.easeOut(duration: 0.25)) {
                     contentOpacity = 1.0
                 }
             }
         }
         .onChange(of: isVisible) { _, visible in
             if !visible {
-                // First fade out content
+                // Fade out content first
                 withAnimation(.easeIn(duration: 0.15)) {
                     contentOpacity = 0.0
                 }
-                // Then hide island after content is hidden
+                // Then collapse island
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
                     withAnimation(.timingCurve(0.76, 0, 0.24, 1, duration: 0.3)) {
                         animationProgress = 0.0
@@ -96,32 +132,49 @@ struct DynamicIslandView: View {
     // MARK: - Expanded Content
 
     private var expandedContent: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: AXSpacing.lg) {
             // Header
-            HStack(spacing: 12) {
-                // Icon
+            HStack(spacing: AXSpacing.md) {
+                // Icon with glow
                 if let icon {
                     ZStack {
                         Circle()
-                            .fill(.white.opacity(0.15))
-                            .frame(width: 40, height: 40)
+                            .fill(Color.axPrimary.opacity(0.2))
+                            .frame(width: 48, height: 48)
+                            .blur(radius: 8)
+                        
+                        Circle()
+                            .fill(
+                                LinearGradient(
+                                    colors: [Color.axPrimary.opacity(0.3), Color.axAccent.opacity(0.2)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .frame(width: 44, height: 44)
 
                         Image(systemName: icon)
-                            .font(.system(size: 18, weight: .semibold))
-                            .foregroundStyle(.white)
+                            .font(.system(size: 20, weight: .semibold))
+                            .foregroundStyle(
+                                LinearGradient(
+                                    colors: [.axPrimaryLight, .axAccent],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
                     }
                 }
 
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: AXSpacing.xxs) {
                     Text(title)
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(.white)
+                        .font(AXTypography.headlineMedium)
+                        .foregroundStyle(.axTextPrimary)
                         .lineLimit(1)
 
                     if let message {
                         Text(message)
-                            .font(.system(size: 12, weight: .regular))
-                            .foregroundStyle(.white.opacity(0.7))
+                            .font(AXTypography.bodySmall)
+                            .foregroundStyle(.axTextSecondary)
                             .lineLimit(2)
                     }
                 }
@@ -133,10 +186,13 @@ struct DynamicIslandView: View {
                     onClose?()
                 } label: {
                     Image(systemName: "xmark")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(.white.opacity(0.6))
-                        .frame(width: 24, height: 24)
-                        .background(Circle().fill(.white.opacity(0.1)))
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(.axTextTertiary)
+                        .frame(width: 28, height: 28)
+                        .background(
+                            Circle()
+                                .fill(Color.axSurfaceElevated)
+                        )
                 }
                 .buttonStyle(.plain)
             }
@@ -149,26 +205,27 @@ struct DynamicIslandView: View {
                     onInsertNow?()
                     onClose?()
                 } label: {
-                    HStack(spacing: 6) {
+                    HStack(spacing: AXSpacing.sm) {
                         Image(systemName: actionButtonIcon)
-                            .font(.system(size: 11, weight: .medium))
+                            .font(.system(size: 13, weight: .medium))
                         Text(actionButtonTitle)
-                            .font(.system(size: 12, weight: .semibold))
+                            .font(AXTypography.labelLarge)
                     }
-                    .foregroundStyle(.black)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, AXSpacing.xl)
+                    .padding(.vertical, AXSpacing.md)
                     .background(
                         Capsule()
-                            .fill(.white)
+                            .fill(AXGradients.primary)
                     )
+                    .shadow(color: .axPrimary.opacity(0.5), radius: 16, x: 0, y: 6)
                 }
                 .buttonStyle(.plain)
             }
         }
-        .padding(.top, 64)
-        .padding(.horizontal, 16)
-        .padding(.bottom, 16)
+        .padding(.top, 70)
+        .padding(.horizontal, AXSpacing.xl)
+        .padding(.bottom, AXSpacing.xl)
     }
 }
 
@@ -243,14 +300,14 @@ struct DynamicIslandShape: Shape {
     @Previewable @State var isVisible = true
 
     ZStack {
-        Color.gray.opacity(0.3)
+        Color.axBackground
             .ignoresSafeArea()
 
         VStack {
             DynamicIslandView(
-                title: "John Doe",
-                message: "Hey! How are you doing today?",
-                icon: "message.fill",
+                title: "AI Assistant",
+                message: "Ready to help compose your email",
+                icon: "wand.and.stars",
                 onClose: {},
                 isVisible: $isVisible
             )

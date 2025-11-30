@@ -3,6 +3,7 @@
 //  AxPlayground
 //
 //  Created by Kamil Moskała on 29/11/2025.
+//  Redesigned with next-level AI aesthetic.
 //
 
 import SwiftUI
@@ -30,7 +31,7 @@ final class TaskQueueWindowController {
         let contentView = TaskQueueWindowContent(taskItems: taskItems)
 
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 380, height: 500),
+            contentRect: NSRect(x: 0, y: 0, width: 420, height: 560),
             styleMask: [.borderless],
             backing: .buffered,
             defer: false
@@ -68,155 +69,326 @@ final class TaskQueueWindowController {
 struct TaskQueueWindowContent: View {
 
     @Binding var taskItems: [TaskItem]
+    @State private var selectedFilter: TaskFilter = .all
+    @State private var searchText = ""
 
-    private var completedTasks: [Binding<TaskItem>] {
-        $taskItems.filter { $0.wrappedValue.status == .completed }
+    enum TaskFilter: String, CaseIterable {
+        case all = "All"
+        case inProgress = "In Progress"
+        case queued = "Queued"
+        case completed = "Completed"
     }
 
-    private var inProgressTasks: [Binding<TaskItem>] {
-        $taskItems.filter { $0.wrappedValue.status == .inProgress }
-    }
-
-    private var idleTasks: [Binding<TaskItem>] {
-        $taskItems.filter { $0.wrappedValue.status == .idle }
+    private var filteredTasks: [Binding<TaskItem>] {
+        $taskItems.filter { item in
+            let matchesFilter: Bool
+            switch selectedFilter {
+            case .all: matchesFilter = true
+            case .inProgress: matchesFilter = item.wrappedValue.status == .inProgress
+            case .queued: matchesFilter = item.wrappedValue.status == .idle
+            case .completed: matchesFilter = item.wrappedValue.status == .completed
+            }
+            
+            let matchesSearch = searchText.isEmpty || item.wrappedValue.title.localizedCaseInsensitiveContains(searchText)
+            
+            return matchesFilter && matchesSearch
+        }
     }
 
     var body: some View {
         ZStack {
-            glassBackground
-            contentView
+            // Background with gradient
+            backgroundView
+            
+            // Content
+            VStack(spacing: 0) {
+                headerView
+                filterBar
+                searchBar
+                taskList
+                footerView
+            }
         }
-        .frame(width: 380, height: 500)
+        .frame(width: 420, height: 560)
+        .clipShape(RoundedRectangle(cornerRadius: AXRadius.xxl))
     }
 
     // MARK: - Background
 
-    private var glassBackground: some View {
-        RoundedRectangle(cornerRadius: 20)
-            .fill(.ultraThinMaterial)
-            .overlay(
-                RoundedRectangle(cornerRadius: 20)
-                    .stroke(
-                        LinearGradient(
-                            colors: [
-                                Color.white.opacity(0.5),
-                                Color.white.opacity(0.2),
-                                Color.clear,
-                                Color.white.opacity(0.1)
-                            ],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ),
-                        lineWidth: 1
-                    )
-            )
-            .shadow(color: Color.black.opacity(0.2), radius: 20, x: 0, y: 10)
-    }
-
-    // MARK: - Content
-
-    private var contentView: some View {
-        VStack(spacing: 0) {
-            headerView
-            Divider()
-                .padding(.horizontal, 16)
-            taskQueueView
+    private var backgroundView: some View {
+        ZStack {
+            // Base color
+            Color.axSurface
+            
+            // Gradient orbs
+            Circle()
+                .fill(Color.axPrimary.opacity(0.08))
+                .frame(width: 200, height: 200)
+                .blur(radius: 60)
+                .offset(x: -100, y: -150)
+            
+            Circle()
+                .fill(Color.axAccent.opacity(0.05))
+                .frame(width: 150, height: 150)
+                .blur(radius: 50)
+                .offset(x: 120, y: 180)
+            
+            // Border
+            RoundedRectangle(cornerRadius: AXRadius.xxl)
+                .stroke(
+                    LinearGradient(
+                        stops: [
+                            .init(color: Color.axPrimary.opacity(0.4), location: 0),
+                            .init(color: Color.axBorder, location: 0.3),
+                            .init(color: Color.axAccent.opacity(0.2), location: 1)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 1
+                )
         }
-        .padding(.vertical, 16)
+        .shadow(color: Color.axPrimary.opacity(0.1), radius: 40, x: 0, y: 20)
+        .shadow(color: Color.black.opacity(0.4), radius: 30, x: 0, y: 15)
     }
+
+    // MARK: - Header
 
     private var headerView: some View {
         HStack {
-            Text("Task Queue")
-                .font(.title2)
-                .fontWeight(.semibold)
+            VStack(alignment: .leading, spacing: AXSpacing.xxs) {
+                Text("Task Queue")
+                    .font(AXTypography.displayMedium)
+                    .foregroundStyle(.axTextPrimary)
+                
+                Text("\(taskItems.count) tasks total")
+                    .font(AXTypography.labelMedium)
+                    .foregroundStyle(.axTextTertiary)
+            }
 
             Spacer()
 
-            Text("\(taskItems.count) tasks")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-
             Button(action: { TaskQueueWindowController.shared.close() }) {
-                Image(systemName: "xmark.circle.fill")
-                    .font(.title2)
-                    .foregroundStyle(.secondary)
+                Image(systemName: "xmark")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(.axTextTertiary)
+                    .frame(width: 32, height: 32)
+                    .background(
+                        Circle()
+                            .fill(Color.axSurfaceElevated)
+                    )
             }
             .buttonStyle(.plain)
         }
-        .padding(.horizontal, 20)
-        .padding(.bottom, 12)
+        .padding(.horizontal, AXSpacing.xl)
+        .padding(.top, AXSpacing.xl)
+        .padding(.bottom, AXSpacing.lg)
+    }
+    
+    // MARK: - Filter Bar
+    
+    private var filterBar: some View {
+        HStack(spacing: AXSpacing.xs) {
+            ForEach(TaskFilter.allCases, id: \.self) { filter in
+                FilterChip(
+                    title: filter.rawValue,
+                    isSelected: selectedFilter == filter,
+                    count: countForFilter(filter)
+                ) {
+                    withAnimation(.easeOut(duration: 0.2)) {
+                        selectedFilter = filter
+                    }
+                }
+            }
+        }
+        .padding(.horizontal, AXSpacing.xl)
+        .padding(.bottom, AXSpacing.md)
+    }
+    
+    private func countForFilter(_ filter: TaskFilter) -> Int {
+        switch filter {
+        case .all: return taskItems.count
+        case .inProgress: return taskItems.filter { $0.status == .inProgress }.count
+        case .queued: return taskItems.filter { $0.status == .idle }.count
+        case .completed: return taskItems.filter { $0.status == .completed }.count
+        }
+    }
+    
+    // MARK: - Search Bar
+    
+    private var searchBar: some View {
+        HStack(spacing: AXSpacing.sm) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 14))
+                .foregroundStyle(.axTextTertiary)
+            
+            TextField("Search tasks...", text: $searchText)
+                .textFieldStyle(.plain)
+                .font(AXTypography.bodyMedium)
+                .foregroundStyle(.axTextPrimary)
+        }
+        .padding(.horizontal, AXSpacing.md)
+        .padding(.vertical, AXSpacing.sm)
+        .background(
+            RoundedRectangle(cornerRadius: AXRadius.md)
+                .fill(Color.axSurfaceElevated)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: AXRadius.md)
+                .stroke(Color.axBorder, lineWidth: 1)
+        )
+        .padding(.horizontal, AXSpacing.xl)
+        .padding(.bottom, AXSpacing.md)
     }
 
-    private var taskQueueView: some View {
+    // MARK: - Task List
+
+    private var taskList: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                if !inProgressTasks.isEmpty {
-                    taskSection(title: "In Progress", icon: "circle.dotted", color: .yellow, tasks: inProgressTasks)
-                }
-
-                if !idleTasks.isEmpty {
-                    taskSection(title: "Queued", icon: "circle", color: .gray, tasks: idleTasks)
-                }
-
-                if !completedTasks.isEmpty {
-                    taskSection(title: "Completed", icon: "checkmark.circle.fill", color: .green, tasks: completedTasks)
+            LazyVStack(spacing: AXSpacing.sm) {
+                if filteredTasks.isEmpty {
+                    emptyState
+                } else {
+                    ForEach(filteredTasks) { $item in
+                        TaskQueueRowNew(
+                            item: $item,
+                            onRun: { runTask(item) },
+                            onDelete: { deleteTask(item) }
+                        )
+                    }
                 }
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
+            .padding(.horizontal, AXSpacing.xl)
+            .padding(.vertical, AXSpacing.md)
         }
     }
-
-    private func taskSection(title: String, icon: String, color: Color, tasks: [Binding<TaskItem>]) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 6) {
-                Image(systemName: icon)
-                    .font(.system(size: 12))
-                    .foregroundStyle(color)
-
-                Text(title)
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                    .foregroundStyle(.secondary)
-
-                Text("\(tasks.count)")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(Color.secondary.opacity(0.2))
-                    .cornerRadius(4)
+    
+    private var emptyState: some View {
+        VStack(spacing: AXSpacing.md) {
+            ZStack {
+                Circle()
+                    .fill(Color.axSurfaceElevated)
+                    .frame(width: 60, height: 60)
+                
+                Image(systemName: "checkmark.circle")
+                    .font(.system(size: 28))
+                    .foregroundStyle(.axTextTertiary)
             }
-            .padding(.horizontal, 8)
-
-            VStack(spacing: 2) {
-                ForEach(tasks) { $item in
-                    TaskQueueRow(
-                        item: $item,
-                        onRun: { runTask(item) },
-                        onDelete: { deleteTask(item) }
-                    )
+            
+            Text(searchText.isEmpty ? "No tasks in this category" : "No matching tasks")
+                .font(AXTypography.bodyMedium)
+                .foregroundStyle(.axTextSecondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, AXSpacing.xxxl)
+    }
+    
+    // MARK: - Footer
+    
+    private var footerView: some View {
+        HStack {
+            // Quick stats
+            HStack(spacing: AXSpacing.lg) {
+                StatBadge(value: taskItems.filter { $0.status == .inProgress }.count, label: "Active", color: .axWarning)
+                StatBadge(value: taskItems.filter { $0.status == .idle }.count, label: "Queued", color: .axTextTertiary)
+                StatBadge(value: taskItems.filter { $0.status == .completed }.count, label: "Done", color: .axSuccess)
+            }
+            
+            Spacer()
+            
+            // Clear completed button
+            if taskItems.contains(where: { $0.status == .completed }) {
+                Button {
+                    withAnimation {
+                        taskItems.removeAll { $0.status == .completed }
+                    }
+                } label: {
+                    Text("Clear Completed")
+                        .font(AXTypography.labelSmall)
+                        .foregroundStyle(.axTextSecondary)
                 }
+                .buttonStyle(.plain)
             }
         }
+        .padding(AXSpacing.lg)
+        .background(Color.axSurface.opacity(0.8))
     }
 
     // MARK: - Actions
 
     private func runTask(_ item: TaskItem) {
         guard let index = taskItems.firstIndex(where: { $0.id == item.id }) else { return }
-        taskItems[index].status = .inProgress
+        withAnimation {
+            taskItems[index].status = .inProgress
+        }
     }
 
     private func deleteTask(_ item: TaskItem) {
-        taskItems.removeAll { $0.id == item.id }
+        withAnimation {
+            taskItems.removeAll { $0.id == item.id }
+        }
     }
 }
 
-// MARK: - Task Queue Row
+// MARK: - Filter Chip
 
-struct TaskQueueRow: View {
+struct FilterChip: View {
+    let title: String
+    let isSelected: Bool
+    let count: Int
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: AXSpacing.xs) {
+                Text(title)
+                    .font(AXTypography.labelSmall)
+                
+                if count > 0 {
+                    Text("\(count)")
+                        .font(AXTypography.labelSmall)
+                        .foregroundStyle(isSelected ? .white.opacity(0.7) : .axTextTertiary)
+                }
+            }
+            .foregroundStyle(isSelected ? .white : .axTextSecondary)
+            .padding(.horizontal, AXSpacing.md)
+            .padding(.vertical, AXSpacing.xs)
+            .background(
+                Capsule()
+                    .fill(isSelected ? Color.axPrimary : Color.axSurfaceElevated)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Stat Badge
+
+struct StatBadge: View {
+    let value: Int
+    let label: String
+    let color: Color
+    
+    var body: some View {
+        HStack(spacing: AXSpacing.xs) {
+            Circle()
+                .fill(color)
+                .frame(width: 6, height: 6)
+            
+            Text("\(value)")
+                .font(AXTypography.mono)
+                .foregroundStyle(.axTextPrimary)
+            
+            Text(label)
+                .font(AXTypography.labelSmall)
+                .foregroundStyle(.axTextTertiary)
+        }
+    }
+}
+
+// MARK: - Task Queue Row (Redesigned)
+
+struct TaskQueueRowNew: View {
 
     @Binding var item: TaskItem
     let onRun: () -> Void
@@ -225,51 +397,102 @@ struct TaskQueueRow: View {
     @State private var isHovered = false
 
     var body: some View {
-        HStack(spacing: 10) {
-            Image(systemName: item.status.iconName)
-                .font(.system(size: 14))
-                .foregroundStyle(item.status.color)
-                .frame(width: 16)
+        HStack(spacing: AXSpacing.md) {
+            // Status indicator
+            ZStack {
+                Circle()
+                    .fill(item.status.color.opacity(0.15))
+                    .frame(width: 32, height: 32)
+                
+                Image(systemName: item.status.iconName)
+                    .font(.system(size: 14))
+                    .foregroundStyle(item.status.color)
+            }
 
-            Text(item.title)
-                .font(.body)
-                .foregroundStyle(.primary)
-                .lineLimit(1)
+            // Task info
+            VStack(alignment: .leading, spacing: AXSpacing.xxs) {
+                Text(item.title)
+                    .font(AXTypography.bodyMedium)
+                    .foregroundStyle(.axTextPrimary)
+                    .lineLimit(1)
+                
+                Text(item.status.displayName)
+                    .font(AXTypography.labelSmall)
+                    .foregroundStyle(.axTextTertiary)
+            }
 
             Spacer()
 
+            // Action buttons
             if isHovered {
-                HStack(spacing: 6) {
+                HStack(spacing: AXSpacing.xs) {
                     if item.status == .idle {
                         Button(action: onRun) {
-                            Image(systemName: "play.circle.fill")
-                                .font(.system(size: 18))
-                                .foregroundStyle(.blue)
+                            Image(systemName: "play.fill")
+                                .font(.system(size: 12))
+                                .foregroundStyle(.axPrimary)
+                                .frame(width: 28, height: 28)
+                                .background(
+                                    Circle()
+                                        .fill(Color.axPrimary.opacity(0.15))
+                                )
                         }
                         .buttonStyle(.plain)
                         .help("Run now")
                     }
 
                     Button(action: onDelete) {
-                        Image(systemName: "trash.circle.fill")
-                            .font(.system(size: 18))
-                            .foregroundStyle(.red.opacity(0.8))
+                        Image(systemName: "trash")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.axError)
+                            .frame(width: 28, height: 28)
+                            .background(
+                                Circle()
+                                    .fill(Color.axError.opacity(0.15))
+                            )
                     }
                     .buttonStyle(.plain)
                     .help("Delete")
                 }
+                .transition(.opacity.combined(with: .scale(scale: 0.8)))
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
+        .padding(AXSpacing.md)
         .background(
-            RoundedRectangle(cornerRadius: 8)
-                .fill(isHovered ? Color.primary.opacity(0.08) : Color.clear)
+            RoundedRectangle(cornerRadius: AXRadius.md)
+                .fill(isHovered ? Color.axSurfaceElevated : Color.axSurface)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: AXRadius.md)
+                .stroke(isHovered ? Color.axBorder : Color.axBorder.opacity(0.5), lineWidth: 1)
         )
         .onHover { hovering in
-            withAnimation(.easeInOut(duration: 0.15)) {
+            withAnimation(.easeOut(duration: 0.15)) {
                 isHovered = hovering
             }
         }
+    }
+}
+
+// MARK: - TaskItem Status Extension
+
+extension TaskItem.Status {
+    var displayName: String {
+        switch self {
+        case .idle: return "Queued"
+        case .inProgress: return "In Progress"
+        case .completed: return "Completed"
+        }
+    }
+}
+
+// Keep old component for compatibility
+struct TaskQueueRow: View {
+    @Binding var item: TaskItem
+    let onRun: () -> Void
+    let onDelete: () -> Void
+    
+    var body: some View {
+        TaskQueueRowNew(item: $item, onRun: onRun, onDelete: onDelete)
     }
 }
