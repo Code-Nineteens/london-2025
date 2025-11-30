@@ -249,10 +249,11 @@ struct MenuBarViewNew: View {
             
             // Status indicator
             HStack(spacing: AXSpacing.xs) {
-                Circle()
-                    .fill(automationService.isEnabled ? Color.axSuccess : Color.axTextTertiary)
-                    .frame(width: 6, height: 6)
-                    .shadow(color: automationService.isEnabled ? .axSuccess.opacity(0.6) : .clear, radius: 4)
+                PulsingCircle(
+                    isActive: automationService.isEnabled,
+                    isProcessing: automationService.isProcessing,
+                    color: Color.axSuccess
+                )
                 
                 Text(automationService.isEnabled ? "Active" : "Idle")
                     .font(AXTypography.labelSmall)
@@ -601,6 +602,66 @@ struct MenuBarViewNew: View {
 }
 
 // MARK: - Supporting Components
+
+struct PulsingCircle: View {
+    let isActive: Bool
+    let isProcessing: Bool
+    let color: Color
+    
+    @State private var pulseScale: CGFloat = 1.0
+    
+    // More visible pulsing range
+    private var maxScale: CGFloat { 1.5 }
+    // Faster when processing (2x speed = 0.25s instead of 0.5s)
+    private var animationDuration: Double { isProcessing ? 0.25 : 0.5 }
+    
+    var body: some View {
+        Circle()
+            .fill(isActive ? color : Color.axTextTertiary)
+            .frame(width: 6, height: 6)
+            .scaleEffect(pulseScale)
+            .shadow(color: isActive ? color.opacity(0.6) : .clear, radius: 4)
+            .onAppear {
+                if isActive {
+                    startContinuousPulsing()
+                }
+            }
+            .onChange(of: isActive) { _, newValue in
+                if newValue {
+                    startContinuousPulsing()
+                } else {
+                    stopPulsing()
+                }
+            }
+            .onChange(of: isProcessing) { _, _ in
+                // Restart animation with new speed when processing state changes
+                if isActive {
+                    startContinuousPulsing()
+                }
+            }
+    }
+    
+    private func startContinuousPulsing() {
+        // Reset to base scale first
+        pulseScale = 1.0
+        
+        // Use DispatchQueue to ensure animation starts after state reset
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+            withAnimation(
+                Animation.easeInOut(duration: animationDuration)
+                    .repeatForever(autoreverses: true)
+            ) {
+                pulseScale = maxScale
+            }
+        }
+    }
+    
+    private func stopPulsing() {
+        withAnimation(.easeOut(duration: 0.3)) {
+            pulseScale = 1.0
+        }
+    }
+}
 
 struct StatusPill: View {
     let icon: String
