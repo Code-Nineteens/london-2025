@@ -260,7 +260,7 @@ final class IntentAnalyzer: ObservableObject {
                 task: action,
                 confidence: score,
                 suggestedAction: "Perform \(action) action",
-                reason: "Detected intent from your recent activity",
+                reason: content,
                 appContext: NotificationPayload.AppContext(
                     appName: systemState.activeApp,
                     elementRole: systemState.activeElement,

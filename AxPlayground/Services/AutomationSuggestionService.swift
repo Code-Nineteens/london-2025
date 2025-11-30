@@ -180,9 +180,61 @@ final class AutomationSuggestionService: ObservableObject {
            combined.contains("create") || combined.contains("utwórz") {
             return (icon: "doc.fill", handler: nil)
         }
-        
+
+        // Check for GitHub-related keywords
+        if combined.contains("github") || combined.contains("issue") ||
+           combined.contains("pull request") || combined.contains("pr") ||
+           combined.contains("devin") {
+            return (icon: "chevron.left.forwardslash.chevron.right", handler: {
+                Task {
+                    await self.handleGitHubAction(for: payload)
+                }
+            })
+        }
+
         // Default
         return (icon: "wand.and.stars", handler: nil)
+    }
+
+    // MARK: - GitHub Action
+
+    /// Handle GitHub-related actions using Devin
+    private func handleGitHubAction(for payload: NotificationPayload) async {
+        print("🐙 Handling GitHub action: \(payload.task)")
+        
+
+        // Extract URL from payload (search in task, suggestedAction, reason)
+        let allText = "\(payload.task) \(payload.suggestedAction) \(payload.reason)"
+        let issueURL = extractURL(from: allText)
+
+        if let url = issueURL {
+            print("🐙 Found URL: \(url)")
+            do {
+                let session = try await DevinHelper.solveIssue(issueURL: url)
+                print("🐙 ✅ Devin session created: \(session.sessionId)")
+            } catch {
+                print("🐙 ❌ Devin error: \(error.localizedDescription)")
+                // Fallback: open the URL directly
+            }
+        } else {
+            print("🐙 No URL found, opening GitHub")
+        }
+    }
+
+    /// Extract https:// URL from text
+    private func extractURL(from text: String) -> String? {
+        let pattern = "https://[^\\s\"'<>]+"
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else {
+            return nil
+        }
+
+        let range = NSRange(text.startIndex..., in: text)
+        if let match = regex.firstMatch(in: text, options: [], range: range) {
+            if let swiftRange = Range(match.range, in: text) {
+                return String(text[swiftRange])
+            }
+        }
+        return nil
     }
     
     // MARK: - Email Draft Composition
