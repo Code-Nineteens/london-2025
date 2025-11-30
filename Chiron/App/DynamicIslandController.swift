@@ -324,7 +324,7 @@ struct UnifiedIslandView: View {
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(.purple)
 
-                Text("Chiron")
+                Text("vibecodeos")
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(.white)
 
