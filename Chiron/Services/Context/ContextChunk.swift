@@ -42,6 +42,7 @@ struct ContextChunk: Codable, Identifiable, Sendable {
 /// Source of context data
 enum ContextSource: String, Codable, Sendable {
     case slack
+    case discord
     case mail
     case calendar
     case notes
@@ -53,11 +54,12 @@ enum ContextSource: String, Codable, Sendable {
     case notification
     case ocr  // OCR screen capture
     case unknown
-    
+
     /// Map app name to context source
     static func from(appName: String) -> ContextSource {
         switch appName.lowercased() {
         case "slack": return .slack
+        case "discord": return .discord
         case "mail": return .mail
         case "calendar": return .calendar
         case "notes": return .notes

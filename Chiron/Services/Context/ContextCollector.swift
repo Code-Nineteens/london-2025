@@ -294,21 +294,33 @@ final class ContextCollector: ObservableObject {
     /// Collect from notification
     func collectFromNotification(title: String?, body: String?, app: String) async {
         guard isCollecting else { return }
-        
+
         let content = [title, body].compactMap { $0 }.joined(separator: ": ")
         guard content.count >= 10 else { return }
-        
+
         let entities = extractEntities(from: content)
-        
+
+        // Determine the appropriate source based on app name
+        // Discord notifications should use .discord for better filtering
+        let source: ContextSource
+        if app.lowercased() == "discord" {
+            source = .discord
+        } else if app.lowercased() == "slack" {
+            source = .slack
+        } else {
+            source = .notification
+        }
+
         let chunk = ContextChunk(
-            source: .notification,
+            source: source,
             content: content,
             entities: entities,
             topic: nil,
             embedding: nil,
             metadata: ["app": app]
         )
-        
+
+        print("📨 Storing notification from \(app) as source: \(source.rawValue)")
         pendingChunks.append(chunk)
         chunksCollected += 1
         scheduleBatchProcessing()

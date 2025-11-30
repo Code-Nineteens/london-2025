@@ -287,7 +287,7 @@ final class EmailDraftComposer: ObservableObject {
         CUSTOM RULES (USER-DEFINED CONTACTS & PREFERENCES):
         ═══════════════════════════════════════════════════════
 
-        [Person - Piotr]
+        [Person - Piotr Pasztor]
         • Email: piotrekpasztor@gmail.com
         • Style: Informal - you work together as colleagues
         • When writing to Piotr, use casual/friendly tone, and always use lowercase pls!

@@ -102,7 +102,20 @@ final class ContextRetriever: ObservableObject {
             let recentSlack = try? await store.getRecent(source: .slack, limit: 5)
             candidates.append(contentsOf: recentSlack ?? [])
         }
-        
+
+        if intent.lowercased().contains("discord") {
+            let recentDiscord = try? await store.getRecent(source: .discord, limit: 5)
+            candidates.append(contentsOf: recentDiscord ?? [])
+        }
+
+        // ALWAYS include recent notifications - they are the primary source of truth!
+        // This is critical for Discord and other messaging apps
+        let recentNotifications = try? await store.getRecent(source: .notification, limit: 10)
+        if let notifications = recentNotifications {
+            candidates.append(contentsOf: notifications)
+            print("🎯 Added \(notifications.count) recent notifications to candidates")
+        }
+
         // Add some recent context regardless
         let recent = try? await store.getRecent(source: nil, limit: 10)
         candidates.append(contentsOf: recent ?? [])
@@ -120,10 +133,10 @@ final class ContextRetriever: ObservableObject {
             let recency = recencyScore(chunk.timestamp)
             let entityMatch = entityOverlapScore(intentEntities, chunk.entities)
             let topicMatch = topicMatchScore(intent, chunk)
-            
+
             // BIG BOOST for chunks that were found by entity search
             let entitySearchBoost: Float = entityMatchedIds.contains(chunk.id) ? 0.6 : 0.0
-            
+
             // Also check if chunk content contains any of the intent entities
             let contentContainsEntity = intentEntities.contains { entity in
                 chunk.content.lowercased().contains(entity.value.lowercased()) ||
@@ -137,15 +150,28 @@ final class ContextRetriever: ObservableObject {
             if !intentEntities.isEmpty && !contentContainsEntity && !entityMatchedIds.contains(chunk.id) {
                  irrelevancePenalty = 0.5
             }
-            
+
+            // NOTIFICATION/DISCORD PRIORITY BOOST - These are real-time messages!
+            // System prompts say [Notification] = TOP PRIORITY, so we must score them higher
+            var notificationBoost: Float = 0.0
+            if chunk.source == .notification || chunk.source == .discord {
+                notificationBoost = 0.7  // High boost for notifications
+                // Extra boost for very recent notifications (within last 5 minutes)
+                let ageInMinutes = Date().timeIntervalSince(chunk.timestamp) / 60
+                if ageInMinutes < 5 {
+                    notificationBoost += 0.3  // Total 1.0 boost for fresh notifications
+                }
+            }
+
             // Combine scores
             let score = recencyWeight * recency +
                         relevanceWeight * topicMatch +
                         entityWeight * entityMatch +
                         entitySearchBoost +
-                        contentBoost -
+                        contentBoost +
+                        notificationBoost -
                         irrelevancePenalty
-            
+
             return (chunk, score)
         }
         
@@ -170,24 +196,55 @@ final class ContextRetriever: ObservableObject {
         guard !chunks.isEmpty else {
             return "No relevant context available."
         }
-        
+
         var context = "RELEVANT CONTEXT:\n\n"
-        
-        for (index, chunk) in chunks.enumerated() {
-            let timeAgo = formatTimeAgo(chunk.timestamp)
-            let source = chunk.source.rawValue.capitalized
-            
-            context += "[\(index + 1)] [\(source)] (\(timeAgo))\n"
-            context += chunk.content.prefix(500)
-            
-            if !chunk.entities.isEmpty {
-                let entityStr = chunk.entities.map { "\($0.type.rawValue): \($0.value)" }.joined(separator: ", ")
-                context += "\nEntities: \(entityStr)"
+
+        // Separate notifications/discord from other sources for emphasis
+        let notificationSources: Set<ContextSource> = [.notification, .discord, .slack]
+        let notificationChunks = chunks.filter { notificationSources.contains($0.source) }
+        let otherChunks = chunks.filter { !notificationSources.contains($0.source) }
+
+        // Show notification chunks first with emphasis
+        if !notificationChunks.isEmpty {
+            context += "⚠️ NOTIFICATIONS (PRIMARY SOURCE):\n"
+            for (index, chunk) in notificationChunks.enumerated() {
+                let timeAgo = formatTimeAgo(chunk.timestamp)
+                let source = chunk.source.rawValue.capitalized
+                let appName = chunk.metadata["app"] ?? source
+
+                context += "[\(index + 1)] [\(source) from \(appName)] (\(timeAgo))\n"
+                context += String(chunk.content.prefix(500))
+
+                if !chunk.entities.isEmpty {
+                    let entityStr = chunk.entities.map { "\($0.type.rawValue): \($0.value)" }.joined(separator: ", ")
+                    context += "\nEntities: \(entityStr)"
+                }
+
+                context += "\n\n"
             }
-            
-            context += "\n\n"
         }
-        
+
+        // Show other context
+        if !otherChunks.isEmpty {
+            if !notificationChunks.isEmpty {
+                context += "OTHER CONTEXT:\n"
+            }
+            for (index, chunk) in otherChunks.enumerated() {
+                let timeAgo = formatTimeAgo(chunk.timestamp)
+                let source = chunk.source.rawValue.capitalized
+
+                context += "[\(notificationChunks.count + index + 1)] [\(source)] (\(timeAgo))\n"
+                context += String(chunk.content.prefix(500))
+
+                if !chunk.entities.isEmpty {
+                    let entityStr = chunk.entities.map { "\($0.type.rawValue): \($0.value)" }.joined(separator: ", ")
+                    context += "\nEntities: \(entityStr)"
+                }
+
+                context += "\n\n"
+            }
+        }
+
         return context
     }
     

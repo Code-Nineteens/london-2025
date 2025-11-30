@@ -164,7 +164,7 @@ final class CalendarEventComposer: ObservableObject {
         CUSTOM RULES (USER-DEFINED CONTACTS & PREFERENCES):
         ═══════════════════════════════════════════════════════
 
-        [Person - Piotr]
+        [Person - Piotr Pasztor]
         • Email: piotrekpasztor@gmail.com
         • When scheduling with Piotr, use his email for the invite
 
@@ -271,6 +271,10 @@ final class CalendarEventComposer: ObservableObject {
     }
 
     private func parseCalendarEventResponse(_ response: String) -> CalendarEventPayload? {
+        print("📅 ═══════════════════════════════════════════════════")
+        print("📅 PARSING CALENDAR EVENT RESPONSE")
+        print("📅 ═══════════════════════════════════════════════════")
+
         // Extract JSON from response
         var jsonString = response
 
@@ -281,8 +285,16 @@ final class CalendarEventComposer: ObservableObject {
             let endIndex = endRange.upperBound
             if startIndex < endIndex {
                 jsonString = String(response[startIndex..<endIndex])
+                print("📅 Extracted JSON block (length: \(jsonString.count))")
+            } else {
+                print("📅 ⚠️ JSON brackets in wrong order")
             }
+        } else {
+            print("📅 ⚠️ No JSON brackets found in response")
         }
+
+        print("📅 JSON to parse:")
+        print(jsonString)
 
         // Parse JSON
         guard let data = jsonString.data(using: .utf8) else {
@@ -293,9 +305,55 @@ final class CalendarEventComposer: ObservableObject {
         do {
             let decoder = JSONDecoder()
             let event = try decoder.decode(CalendarEventPayload.self, from: data)
+
+            print("📅 ✅ JSON parsed successfully!")
+            print("📅   shouldCreateEvent: \(event.shouldCreateEvent)")
+            print("📅   eventTitle: \(event.eventTitle)")
+            print("📅   startTime: \(event.startTime)")
+            print("📅   endTime: \(event.endTime)")
+            print("📅   attendeeEmail: \(event.attendeeEmail ?? "nil")")
+            print("📅   confidence: \(event.confidence)")
+
+            // Validate date parsing
+            if let startDate = event.startDate {
+                print("📅   startDate parsed: \(startDate)")
+            } else {
+                print("📅   ⚠️ startDate FAILED to parse from: '\(event.startTime)'")
+            }
+
+            if let endDate = event.endDate {
+                print("📅   endDate parsed: \(endDate)")
+            } else {
+                print("📅   ⚠️ endDate FAILED to parse from: '\(event.endTime)'")
+            }
+
+            print("📅   isActionable: \(event.isActionable)")
+            if !event.isActionable {
+                print("📅   ⚠️ NOT ACTIONABLE because:")
+                if !event.shouldCreateEvent { print("📅     - shouldCreateEvent is false") }
+                if event.confidence < 0.7 { print("📅     - confidence \(event.confidence) < 0.7") }
+                if event.eventTitle.isEmpty { print("📅     - eventTitle is empty") }
+                if event.startTime.isEmpty { print("📅     - startTime is empty") }
+            }
+
             return event
         } catch {
             print("📅 ❌ JSON parse error: \(error)")
+            print("📅 ❌ DecodingError details:")
+            if let decodingError = error as? DecodingError {
+                switch decodingError {
+                case .keyNotFound(let key, let context):
+                    print("📅   Key '\(key.stringValue)' not found: \(context.debugDescription)")
+                case .typeMismatch(let type, let context):
+                    print("📅   Type mismatch for \(type): \(context.debugDescription)")
+                case .valueNotFound(let type, let context):
+                    print("📅   Value not found for \(type): \(context.debugDescription)")
+                case .dataCorrupted(let context):
+                    print("📅   Data corrupted: \(context.debugDescription)")
+                @unknown default:
+                    print("📅   Unknown decoding error")
+                }
+            }
             return nil
         }
     }
