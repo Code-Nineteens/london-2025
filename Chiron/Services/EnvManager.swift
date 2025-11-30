@@ -62,7 +62,7 @@ final class EnvManager {
     private var projectRoot: String {
         URL(fileURLWithPath: #file)
             .deletingLastPathComponent()  // Services
-            .deletingLastPathComponent()  // AxPlayground
+            .deletingLastPathComponent()  // Chiron
             .deletingLastPathComponent()  // project root
             .path
     }

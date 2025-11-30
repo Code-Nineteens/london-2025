@@ -16,9 +16,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "EB2F3F2F2EDB3A58006169F7"
-               BuildableName = "AxPlayground.app"
-               BlueprintName = "AxPlayground"
-               ReferencedContainer = "container:AxPlayground.xcodeproj">
+               BuildableName = "Chiron.app"
+               BlueprintName = "Chiron"
+               ReferencedContainer = "container:Chiron.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -45,9 +45,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "EB2F3F2F2EDB3A58006169F7"
-            BuildableName = "AxPlayground.app"
-            BlueprintName = "AxPlayground"
-            ReferencedContainer = "container:AxPlayground.xcodeproj">
+            BuildableName = "Chiron.app"
+            BlueprintName = "Chiron"
+            ReferencedContainer = "container:Chiron.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </LaunchAction>
@@ -62,9 +62,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "EB2F3F2F2EDB3A58006169F7"
-            BuildableName = "AxPlayground.app"
-            BlueprintName = "AxPlayground"
-            ReferencedContainer = "container:AxPlayground.xcodeproj">
+            BuildableName = "Chiron.app"
+            BlueprintName = "Chiron"
+            ReferencedContainer = "container:Chiron.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>

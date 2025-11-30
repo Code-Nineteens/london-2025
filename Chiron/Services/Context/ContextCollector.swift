@@ -268,7 +268,7 @@ final class ContextCollector: ObservableObject {
         // Dev tool / IDE markers (Windsurf, Cursor, VSCode)
         let devMarkers = [
             "claude opus", "thinking)", "accept file",
-            "axplayground", "localhost:", "sqlite3",
+            "chiron", "axplayground", "localhost:", "sqlite3",
             "xcodebuild", "build succeeded", "build failed",
             "< > code", "code claude", ".swift",
             "emaildraftcomposer", "contextcollector",
