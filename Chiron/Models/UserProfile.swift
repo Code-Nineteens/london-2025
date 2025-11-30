@@ -72,7 +72,7 @@ struct UserProfile: Codable {
     
     private static var fileURL: URL {
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-        let appFolder = appSupport.appendingPathComponent("Chiron")
+        let appFolder = appSupport.appendingPathComponent("ChironaOS")
         try? FileManager.default.createDirectory(at: appFolder, withIntermediateDirectories: true)
         return appFolder.appendingPathComponent(fileName)
     }
