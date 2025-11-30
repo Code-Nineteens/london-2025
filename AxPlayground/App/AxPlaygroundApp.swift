@@ -78,7 +78,7 @@ struct AxPlaygroundApp: App {
         }
         .defaultLaunchBehavior(.suppressed)
 
-        MenuBarExtra("AxPlayground", systemImage: "bolt.fill") {
+        MenuBarExtra("vibecodeos", systemImage: "bolt.fill") {
             MenuBarView(
                 taskItems: $taskItems,
                 accessibilityMonitor: accessibilityMonitor,
