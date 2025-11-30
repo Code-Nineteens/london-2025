@@ -16,8 +16,8 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "EB2F3F2F2EDB3A58006169F7"
-               BuildableName = "Chiron.app"
-               BlueprintName = "Chiron"
+               BuildableName = "ChironaOS.app"
+               BlueprintName = "ChironaOS"
                ReferencedContainer = "container:Chiron.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
@@ -45,8 +45,8 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "EB2F3F2F2EDB3A58006169F7"
-            BuildableName = "Chiron.app"
-            BlueprintName = "Chiron"
+            BuildableName = "ChironaOS.app"
+            BlueprintName = "ChironaOS"
             ReferencedContainer = "container:Chiron.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
@@ -62,8 +62,8 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "EB2F3F2F2EDB3A58006169F7"
-            BuildableName = "Chiron.app"
-            BlueprintName = "Chiron"
+            BuildableName = "ChironaOS.app"
+            BlueprintName = "ChironaOS"
             ReferencedContainer = "container:Chiron.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>

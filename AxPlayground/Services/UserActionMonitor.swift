@@ -317,7 +317,7 @@ final class UserActionMonitor: ObservableObject {
     }
     
     private func reportAction(_ action: UserAction) {
-        if action.appName == "Chiron" { return }
+        if action.appName == "ChironaOS" { return }
         
         let trimmedDetails = action.details.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmedDetails.isEmpty { return }

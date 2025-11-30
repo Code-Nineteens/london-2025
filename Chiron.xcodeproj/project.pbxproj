@@ -11,7 +11,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		EB2F3F302EDB3A58006169F7 /* Chiron.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Chiron.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		EB2F3F302EDB3A58006169F7 /* ChironaOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ChironaOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -53,7 +53,7 @@
 		EB2F3F312EDB3A58006169F7 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				EB2F3F302EDB3A58006169F7 /* Chiron.app */,
+				EB2F3F302EDB3A58006169F7 /* ChironaOS.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -61,9 +61,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		EB2F3F2F2EDB3A58006169F7 /* Chiron */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = EB2F3F3B2EDB3A58006169F7 /* Build configuration list for PBXNativeTarget "Chiron" */;
+		EB2F3F2F2EDB3A58006169F7 /* ChironaOS */ = {
+				isa = PBXNativeTarget;
+				buildConfigurationList = EB2F3F3B2EDB3A58006169F7 /* Build configuration list for PBXNativeTarget "ChironaOS" */;
 			buildPhases = (
 				EB2F3F2C2EDB3A58006169F7 /* Sources */,
 				EB2F3F2D2EDB3A58006169F7 /* Frameworks */,
@@ -76,12 +76,12 @@
 			fileSystemSynchronizedGroups = (
 				EB2F3F322EDB3A58006169F7 /* Chiron */,
 			);
-			name = Chiron;
+			name = ChironaOS;
 			packageProductDependencies = (
 				BB0011223344556677889900 /* SwiftDotenv */,
 			);
-			productName = Chiron;
-			productReference = EB2F3F302EDB3A58006169F7 /* Chiron.app */;
+			productName = ChironaOS;
+			productReference = EB2F3F302EDB3A58006169F7 /* ChironaOS.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -99,7 +99,7 @@
 					};
 				};
 			};
-			buildConfigurationList = EB2F3F2B2EDB3A58006169F7 /* Build configuration list for PBXProject "Chiron" */;
+			buildConfigurationList = EB2F3F2B2EDB3A58006169F7 /* Build configuration list for PBXProject "ChironaOS" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -116,7 +116,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				EB2F3F2F2EDB3A58006169F7 /* Chiron */,
+				EB2F3F2F2EDB3A58006169F7 /* ChironaOS */,
 			);
 		};
 /* End PBXProject section */
@@ -357,7 +357,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		EB2F3F2B2EDB3A58006169F7 /* Build configuration list for PBXProject "Chiron" */ = {
+		EB2F3F2B2EDB3A58006169F7 /* Build configuration list for PBXProject "ChironaOS" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				EB2F3F392EDB3A58006169F7 /* Debug */,
@@ -366,7 +366,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		EB2F3F3B2EDB3A58006169F7 /* Build configuration list for PBXNativeTarget "Chiron" */ = {
+		EB2F3F3B2EDB3A58006169F7 /* Build configuration list for PBXNativeTarget "ChironaOS" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				EB2F3F3C2EDB3A58006169F7 /* Debug */,

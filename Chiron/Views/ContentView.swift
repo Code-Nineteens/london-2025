@@ -122,7 +122,7 @@ struct ContentView: View {
             .axPulsingGlow()
             
             VStack(alignment: .leading, spacing: 2) {
-                Text("Chiron")
+                Text("ChironaOS")
                     .font(AXTypography.headlineMedium)
                     .foregroundColor(Color.axTextPrimary)
                 

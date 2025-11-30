@@ -1,6 +1,6 @@
 //
 //  DynamicIslandController.swift
-//  Chiron
+//  ChironaOS
 //
 //  Shows an idle notch bar that expands into Dynamic Island menu
 //
@@ -324,7 +324,7 @@ struct UnifiedIslandView: View {
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(.purple)
 
-                Text("Chiron")
+                Text("ChironaOS")
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(.white)
 
