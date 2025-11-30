@@ -29,7 +29,7 @@ final class NotificationManager: ObservableObject {
         icon: String? = "bell.fill",
         actionButtonTitle: String = "Insert Now",
         actionButtonIcon: String = "sparkles",
-        autoDismissAfter: TimeInterval = 8.0,
+        autoDismissAfter: TimeInterval = 6.0,
         onAddToQueue: (() -> Void)? = nil,
         onInsertNow: (() -> Void)? = nil,
         onReject: (() -> Void)? = nil
