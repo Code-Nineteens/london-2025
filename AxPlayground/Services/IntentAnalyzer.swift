@@ -122,13 +122,26 @@ final class IntentAnalyzer: ObservableObject {
         appName: String,
         details: String
     ) async -> NotificationPayload? {
+        print("")
+        print("🧠 ═══════════════════════════════════════════════════")
+        print("🧠 IntentAnalyzer.processAction CALLED")
+        print("🧠 ───────────────────────────────────────────────────")
+        print("🧠 actionType: \(actionType)")
+        print("🧠 appName: \(appName)")
+        print("🧠 details: \(details.prefix(150))...")
+        print("🧠 ═══════════════════════════════════════════════════")
+        print("")
+
         let event = AXEvent(
             actionType: actionType,
             appName: appName,
             elementRole: nil,
             textContent: details
         )
-        return await processEvent(event)
+        print("🧠 Created AXEvent, calling processEvent...")
+        let result = await processEvent(event)
+        print("🧠 processEvent returned: \(result != nil ? "payload" : "nil")")
+        return result
     }
     
     /// Get recent events from buffer (for email composition)
@@ -176,46 +189,70 @@ final class IntentAnalyzer: ObservableObject {
     }
     
     // MARK: - Heuristic Scoring
-    
+
     /// Pre-filter with MINIMAL heuristics - let LLM decide if actionable
     /// Only filter out obvious non-actionable cases
     private func computeHeuristicScore() -> Double {
         var score = 0.0
-        
+
         let recentEvents = eventBuffer.suffix(15)
-        guard !recentEvents.isEmpty else { return 0.0 }
-        
+        guard !recentEvents.isEmpty else {
+            print("🧠 Heuristic: ❌ No recent events")
+            return 0.0
+        }
+
+        // Check if latest event is a system notification - ALWAYS process these!
+        if let lastEvent = recentEvents.last?.event,
+           lastEvent.actionType == "system_notification" {
+            print("🧠 Heuristic: ✅ System notification detected - BYPASS heuristics (score=1.0)")
+            return 1.0
+        }
+
         let allTexts = recentEvents.compactMap { $0.event.textContent }
-        
+
         // === MINIMAL FILTERS (let LLM decide the rest) ===
-        
+
         // 1. Must have SOME text content to analyze
-        guard !allTexts.isEmpty else { return 0.0 }
-        
+        guard !allTexts.isEmpty else {
+            print("🧠 Heuristic: ❌ No text content")
+            return 0.0
+        }
+
         // 2. System apps - never actionable
         let systemApps = ["Finder", "System Preferences", "System Settings", "Activity Monitor", "Spotlight"]
-        if systemApps.contains(systemState.activeApp) { return 0.0 }
-        
+        if systemApps.contains(systemState.activeApp) {
+            print("🧠 Heuristic: ❌ System app blocked: \(systemState.activeApp)")
+            return 0.0
+        }
+
         // 3. Must have meaningful text (at least 10 chars total)
         let totalTextLength = allTexts.map { $0.count }.reduce(0, +)
-        if totalTextLength < 10 { return 0.0 }
-        
+        if totalTextLength < 10 {
+            print("🧠 Heuristic: ❌ Text too short: \(totalTextLength) chars")
+            return 0.0
+        }
+
         // === SCORING (determines if we call LLM) ===
-        
+
         // 4. Has text content = worth checking with LLM
         score += 0.5
-        
+        print("🧠 Heuristic: +0.5 (has text content)")
+
         // 5. User is actively typing
-        let typingEvents = recentEvents.filter { 
+        let typingEvents = recentEvents.filter {
             $0.event.actionType.contains("ValueChanged") ||
             $0.event.actionType.contains("text_")
         }
-        if typingEvents.count >= 2 { score += 0.2 }
-        
+        if typingEvents.count >= 2 {
+            score += 0.2
+            print("🧠 Heuristic: +0.2 (typing events)")
+        }
+
         // 6. High-value communication apps
         let communicationApps = ["Mail", "Slack", "Messages", "Notes", "Teams", "Discord"]
         if communicationApps.contains(systemState.activeApp) {
             score += 0.2
+            print("🧠 Heuristic: +0.2 (communication app)")
         }
         
         // 7. In text input field
@@ -231,6 +268,7 @@ final class IntentAnalyzer: ObservableObject {
 
     private func analyzeIntent(content: String) async -> NotificationPayload? {
         guard let url = URL(string: "https://iteratehack-code-19.hf.space/action") else {
+            print("🌐 ❌ Invalid URL")
             return nil
         }
 
@@ -240,21 +278,47 @@ final class IntentAnalyzer: ObservableObject {
 
         let body = ["message": content]
         guard let httpBody = try? JSONSerialization.data(withJSONObject: body) else {
+            print("🌐 ❌ Failed to serialize request body")
             return nil
         }
         request.httpBody = httpBody
 
+        // Log the request
+        print("")
+        print("🌐 ═══════════════════════════════════════════════════")
+        print("🌐 API REQUEST to: \(url.absoluteString)")
+        print("🌐 ───────────────────────────────────────────────────")
+        print("🌐 Method: POST")
+        print("🌐 Headers: Content-Type: application/json")
+        print("🌐 Body: {\"message\": \"\(content.prefix(200))...\"}")
+        print("🌐 ═══════════════════════════════════════════════════")
+        print("")
+
         do {
-            let (data, _) = try await URLSession.shared.data(for: request)
+            let (data, response) = try await URLSession.shared.data(for: request)
+
+            // Log the response
+            print("")
+            print("🌐 ═══════════════════════════════════════════════════")
+            print("🌐 API RESPONSE")
+            print("🌐 ───────────────────────────────────────────────────")
+            if let httpResponse = response as? HTTPURLResponse {
+                print("🌐 Status Code: \(httpResponse.statusCode)")
+            }
+            if let rawResponse = String(data: data, encoding: .utf8) {
+                print("🌐 Raw Response: \(rawResponse)")
+            }
+            print("🌐 ═══════════════════════════════════════════════════")
+            print("")
 
             guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                   let action = json["action"] as? String,
                   let score = json["score"] as? Double else {
-                print("❌ Failed to parse API response")
+                print("🌐 ❌ Failed to parse API response JSON")
                 return nil
             }
 
-            print("✅ API Response: action=\(action), score=\(score)")
+            print("🌐 ✅ Parsed: action=\"\(action)\", score=\(score)")
 
             return NotificationPayload(
                 task: action,
@@ -269,7 +333,7 @@ final class IntentAnalyzer: ObservableObject {
                 timestamp: Date()
             )
         } catch {
-            print("❌ API request failed: \(error)")
+            print("🌐 ❌ API request failed: \(error)")
             return nil
         }
     }

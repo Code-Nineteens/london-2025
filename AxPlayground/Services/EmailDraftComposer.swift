@@ -75,9 +75,30 @@ final class EmailDraftComposer: ObservableObject {
             return nil
         }
         
-        // 4. Force should_compose_email to true (we always want to open Mail)
+        // 4. Validate and sanitize the draft
         var finalDraft = draft
-        if !draft.shouldComposeEmail {
+
+        // Check if subject is invalid (e.g., just "MAIL")
+        let hasInvalidSubject = isInvalidEmailSubject(draft.emailSubject)
+        // Check if body is invalid (e.g., "Perform MAIL action")
+        let hasInvalidBody = isInvalidEmailBody(draft.emailBody, intent: intent)
+
+        if hasInvalidSubject || hasInvalidBody {
+            print("📧 ⚠️ LLM returned invalid content, clearing fields")
+            print("📧   Invalid subject: \(hasInvalidSubject) ('\(draft.emailSubject)')")
+            print("📧   Invalid body: \(hasInvalidBody)")
+            finalDraft = EmailDraftPayload(
+                shouldComposeEmail: true,
+                inferredTask: draft.inferredTask,
+                confidence: draft.confidence,
+                valueAddedContextUsed: draft.valueAddedContextUsed,
+                emailSubject: hasInvalidSubject ? "" : draft.emailSubject,
+                emailBody: hasInvalidBody ? "" : draft.emailBody,
+                recipient: draft.recipient,
+                missingInfo: nil,
+                timestamp: Date()
+            )
+        } else if !draft.shouldComposeEmail {
             print("📧 ⚠️ LLM said no compose, but we force open Mail anyway")
             finalDraft = EmailDraftPayload(
                 shouldComposeEmail: true,
@@ -114,12 +135,12 @@ final class EmailDraftComposer: ObservableObject {
             .replacingOccurrences(of: "Z poważaniem", with: "")
             .replacingOccurrences(of: "Do usłyszenia", with: "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        
+
         print("📧 VALIDATION - Core content: '\(coreContent)'")
-        
+
         let coreLower = coreContent.lowercased()
         let intentLower = intent.lowercased()
-        
+
         // Check if core content is too similar to intent
         if coreLower == intentLower {
             print("📧 INVALID: exact match with intent")
@@ -129,7 +150,7 @@ final class EmailDraftComposer: ObservableObject {
             print("📧 INVALID: contains intent")
             return true
         }
-        
+
         // Check for generic patterns that indicate LLM didn't write real content
         let invalidPatterns = [
             "send email", "send mail", "wyślij mail", "wyślij email",
@@ -139,22 +160,49 @@ final class EmailDraftComposer: ObservableObject {
             "[", "]", // placeholders
             "dear client", "dear customer",
             "@", // raw email addresses in body = not real content
+            "perform mail action", "mail action", "perform email action",
+            "email action", "action mail", "action email",
         ]
-        
+
         for pattern in invalidPatterns {
             if coreLower.contains(pattern) {
                 print("📧 INVALID: contains pattern '\(pattern)'")
                 return true
             }
         }
-        
+
         // Check if content is too short (just greeting + closing without real content)
         if coreContent.count < 20 {
             print("📧 INVALID: too short (\(coreContent.count) chars)")
             return true
         }
-        
+
         print("📧 VALID: passed all checks")
+        return false
+    }
+
+    /// Check if email subject is invalid (just "MAIL" or action type)
+    private func isInvalidEmailSubject(_ subject: String) -> Bool {
+        let subjectLower = subject.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // Invalid subject patterns - just the action type or generic
+        let invalidSubjects = [
+            "mail", "email", "send", "send mail", "send email",
+            "compose", "draft", "message", "wiadomość",
+            "perform mail action", "mail action", "email action"
+        ]
+
+        if invalidSubjects.contains(subjectLower) {
+            print("📧 INVALID SUBJECT: '\(subject)' is too generic")
+            return true
+        }
+
+        // Subject is too short
+        if subjectLower.count < 3 {
+            print("📧 INVALID SUBJECT: too short")
+            return true
+        }
+
         return false
     }
     
@@ -185,56 +233,76 @@ final class EmailDraftComposer: ObservableObject {
         
         return """
         TASK: Compose an email based on the user's intent and context.
-        
+
         USER INTENT: "\(intent)"
-        
+
         USER: \(userProfile.name)
         LANGUAGE: English (ALWAYS write in English!)
         STYLE: \(userProfile.writingStyle.formality)
-        
+
         CURRENT APP: \(systemState.activeApp)
-        
+
         \(contextString)
-        
+
+        ⚠️ CONTEXT PRIORITY (MOST IMPORTANT):
+        1. [Notification] = TOP PRIORITY - These are real-time messages from colleagues/apps. ALWAYS use notification content first!
+        2. [Ocr] = Second priority - Current screen content
+        3. Other context = Lower priority
+
         CONTEXT USAGE:
-        - Check [Notification] and [Ocr] for details matching the intent.
-        - If intent is specific (e.g. "email X about Y"), use context only for details about Y or contact info for X.
-        - If intent is vague (e.g. "reply to this"), rely heavily on [Notification] and [Ocr].
+        - NOTIFICATIONS ARE THE PRIMARY SOURCE OF TRUTH for email content!
+        - If a [Notification] contains instructions like "email X about Y" - this is your main directive.
+        - Extract recipient names, email addresses, and topics primarily from [Notification].
+        - Use [Ocr] to supplement with additional details visible on screen.
+        - If intent is vague (e.g. "reply to this"), rely HEAVILY on [Notification] content.
         - DISCARD context that is clearly unrelated to the intent (e.g. old screen content).
-        
+
         SCENARIO - COLLEAGUE REQUEST (Triangular):
         - If a [Notification] from Colleague A says "Email Person B about Topic C":
           -> You are writing TO Person B.
           -> The topic is Topic C.
           -> Do NOT say "As requested" (Person B didn't request it, Colleague A did).
           -> Instead, start directly: "I'm writing to you regarding Topic C..." or "Colleague A mentioned..."
-        
+
         CRITICAL - DETERMINE THE GOAL:
         - Is it a job offer? An inquiry? A status update? A meeting request?
-        - Look at the context to understand the TRUE PURPOSE, but ensure it aligns with USER INTENT.
-        
+        - Look at [Notification] FIRST to understand the TRUE PURPOSE.
+        - Then check [Ocr] for supporting details.
+
         RULES:
         1. ALWAYS set should_compose_email=true
         2. Write in ENGLISH only
-        3. ADAPT THE CONTENT TO THE GOAL:
-           - If context: "hire Piotrek" → write JOB OFFER / INQUIRY
-           - If context: "ask about project X" → write QUESTION
-           - If context: "send update to client" → write STATUS UPDATE
-           - If context: "schedule meeting" → write MEETING REQUEST
-        4. If no clear topic/recipient in context:
+        3. PRIORITIZE [Notification] content above all other context!
+        4. ADAPT THE CONTENT TO THE GOAL:
+           - If notification: "hire Piotrek" → write JOB OFFER / INQUIRY
+           - If notification: "ask about project X" → write QUESTION
+           - If notification: "send update to client" → write STATUS UPDATE
+           - If notification: "schedule meeting" → write MEETING REQUEST
+        5. If no clear topic/recipient in notifications or context:
            - Set email_body="" (empty) - user fills in
-        5. Sign as \(userProfile.name)
-        6. NEVER use [placeholder] text - use real names or leave empty
-        
+        6. Sign as \(userProfile.name)
+        7. NEVER use [placeholder] text - use real names or leave empty
+
+        ═══════════════════════════════════════════════════════
+        CUSTOM RULES (USER-DEFINED CONTACTS & PREFERENCES):
+        ═══════════════════════════════════════════════════════
+
+        [Person - Piotr]
+        • Email: piotrekpasztor@gmail.com
+        • Style: Informal - you work together as colleagues
+        • When writing to Piotr, use casual/friendly tone, and always use lowercase pls!
+
+        ═══════════════════════════════════════════════════════
+
         RESPOND WITH VALID JSON:
         {
             "should_compose_email": true,
             "inferred_task": "description of what email is about",
             "confidence": 0.0-1.0,
-            "value_added_context_used": ["list of context items used"],
+            "value_added_context_used": ["list of context items used - especially notifications!"],
             "email_subject": "subject line",
             "email_body": "full email text OR empty string if no clear context",
-            "recipient": "email address from context or null",
+            "recipient": "email address from notification/context or null",
             "missing_info": null
         }
         """
@@ -250,59 +318,88 @@ final class EmailDraftComposer: ObservableObject {
         
         let systemPrompt = """
         You are an email composition assistant. Write in ENGLISH only.
-        
-        CRITICAL: Prioritize USER INTENT. Use context details ONLY if they support the intent.
-        
+
+        ⚠️ CRITICAL - NOTIFICATION PRIORITY:
+        [Notification] context is your #1 source of truth! These are real-time messages from colleagues telling you what to do.
+        ALWAYS extract email content, recipients, and topics from [Notification] FIRST before looking at other context.
+
         RULES:
         1. ALWAYS set should_compose_email=true
         2. Write professional, natural emails in English
-        3. DEDUCE THE GOAL from context, but filtered by the intent.
-        4. If context is unrelated to intent, IGNORE the context.
-        5. If context is unclear → set email_body="" (empty string) so user can fill it
-        6. Extract recipient email from [Notification] context if present AND relevant
-        7. NEVER put placeholder text like [company] or [name]
-        8. AVOID generic "As requested" openers unless the recipient actually requested it.
-        
-        EXAMPLE 1 (Colleague Request):
-        Context: Notification from Ari: "Send email to Piotrek about hiring him"
+        3. [Notification] = PRIMARY SOURCE - Extract recipient, topic, and purpose from notifications first!
+        4. [Ocr] = SECONDARY SOURCE - Use for additional details
+        5. DEDUCE THE GOAL from notifications, filtered by user intent.
+        6. If context is unrelated to intent, IGNORE it.
+        7. If no notifications or context is unclear → set email_body="" (empty string) so user can fill it
+        8. Extract recipient email from [Notification] context - this is usually where it comes from!
+        9. NEVER put placeholder text like [company] or [name]
+        10. AVOID generic "As requested" openers unless the recipient actually requested it.
+
+        EXAMPLE 1 (Colleague Request via Notification):
+        Context: [Notification] from Ari: "Send email to Piotrek about hiring him"
         Response:
         {
             "should_compose_email": true,
-            "email_subject": "Job Opportunity / Hiring",
-            "email_body": "Hi Piotrek,\n\nAri mentioned that we are interested in hiring you... [details from context]",
-            "recipient": "piotrek@example.com"
-        }
-        {
-            "should_compose_email": true,
-            "email_subject": "Regarding Developer Position - Relocation to Poland",
-            "email_body": "Hi Piotrek,\\n\\nIt was great meeting you recently. We are very interested in your profile and would like to discuss a potential role with us.\\n\\nHowever, as mentioned, this position would require relocation to Poland. Is this something you would be open to?\\n\\nBest,\\nFilip",
-            "recipient": "piotrek@example.com"
+            "email_subject": "Job Opportunity",
+            "email_body": "Hi Piotrek,\\n\\nAri mentioned that we are interested in discussing a potential opportunity with you...\\n\\nBest,\\nFilip",
+            "recipient": "piotrek@example.com",
+            "value_added_context_used": ["Notification from Ari about hiring Piotrek"]
         }
 
-        EXAMPLE 2 (Project Update):
+        EXAMPLE 2 (Project Update from Notification):
+        Context: [Notification] from Manager: "Update the client on project status"
+        Response:
         {
             "should_compose_email": true,
-            "email_subject": "Update on Project X",
-            "email_body": "Hi Team,\\n\\nJust wanted to let you know that we have finished the initial phase...\\n\\nBest,\\nFilip",
-            "recipient": "team@example.com"
+            "email_subject": "Project Status Update",
+            "email_body": "Hi,\\n\\nI wanted to provide you with an update on the current project status...\\n\\nBest,\\nFilip",
+            "recipient": null,
+            "value_added_context_used": ["Notification from Manager about project update"]
         }
-        
-        EXAMPLE 3 (No clear context):
+
+        EXAMPLE 3 (No notifications, no clear context):
         {
             "should_compose_email": true,
             "email_subject": "",
             "email_body": "",
-            "recipient": null
+            "recipient": null,
+            "value_added_context_used": []
         }
-        
+
         Respond ONLY with valid JSON.
         """
         
+        // Log exactly what is being sent to the AI model
+        print("")
+        print("📧 ═══════════════════════════════════════════════════")
+        print("📧 SENDING TO AI MODEL - FULL REQUEST")
+        print("📧 ═══════════════════════════════════════════════════")
+        print("📧 SYSTEM PROMPT:")
+        print("📧 ───────────────────────────────────────────────────")
+        print(systemPrompt)
+        print("📧 ───────────────────────────────────────────────────")
+        print("📧 USER MESSAGE (includes context):")
+        print("📧 ───────────────────────────────────────────────────")
+        print(prompt)
+        print("📧 ───────────────────────────────────────────────────")
+        print("📧 ═══════════════════════════════════════════════════")
+        print("")
+
         do {
             let response = try await llmClient.callAPI(
                 systemPrompt: systemPrompt,
                 userMessage: prompt
             )
+
+            // Log the AI response
+            print("")
+            print("📧 ═══════════════════════════════════════════════════")
+            print("📧 AI MODEL RESPONSE:")
+            print("📧 ═══════════════════════════════════════════════════")
+            print(response)
+            print("📧 ═══════════════════════════════════════════════════")
+            print("")
+
             return parseEmailDraftResponse(response)
         } catch {
             print("📧 ❌ LLM error: \(error)")
